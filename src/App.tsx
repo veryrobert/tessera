@@ -348,8 +348,9 @@ export default function App() {
   }, [spaces, hrefs])
 
   // Drawing a space: drag on the pattern, snapped to whole cells
-  const [drawing, setDrawing] = useState(true) // the way to add a space, so on while Spaces is open
-  drawingRef.current = drawing && panel === 'spaces'
+  // What a drag on the pattern draws while Spaces is open: a photo, a blank space for type, or nothing
+  const [drawing, setDrawing] = useState<'image' | 'blank' | 'off'>('image')
+  drawingRef.current = drawing !== 'off' && panel === 'spaces'
   const [draft, setDraft] = useState<{ a: [number, number]; b: [number, number] } | null>(null)
   const cellAt = (e: React.PointerEvent): [number, number] => {
     const r = stage.current!.querySelector('svg')!.getBoundingClientRect()
@@ -359,7 +360,8 @@ export default function App() {
   const draftSpace = (d: NonNullable<typeof draft>): Space => {
     const bx = (c: number) => Math.floor(c / pitchX) * pitchX, by = (c: number) => Math.floor(c / pitchY) * pitchY
     const x0 = bx(Math.min(d.a[0], d.b[0])), x1 = bx(Math.max(d.a[0], d.b[0])) + pitchX, y0 = by(Math.min(d.a[1], d.b[1])), y1 = by(Math.max(d.a[1], d.b[1])) + pitchY
-    return { x: x0 / view.w, y: y0 / view.h, w: (x1 - x0) / view.w, h: (y1 - y0) / view.h, kind: 'image', role: lightest(), image: randomImage() }
+    const kind = drawing === 'blank' ? 'blank' : 'image'
+    return { x: x0 / view.w, y: y0 / view.h, w: (x1 - x0) / view.w, h: (y1 - y0) / view.h, kind, role: lightest(), image: kind === 'image' ? randomImage() : undefined }
   }
   const drawHandlers = drawingRef.current ? {
     onPointerDown: (e: React.PointerEvent) => { e.currentTarget.setPointerCapture(e.pointerId); const c = cellAt(e); setDraft({ a: c, b: c }) },
@@ -385,13 +387,13 @@ export default function App() {
   const spacesPanel = (
     <>
       <FieldGroup>
-        <Field label="Draw a space">
-          <OnOff label="Draw a space" value={drawing} onChange={setDrawing} />
+        <Field label="Draw">
+          <Segmented label="Draw" value={drawing} onChange={setDrawing} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }, { value: 'off', label: 'Off' }]} />
         </Field>
       </FieldGroup>
       {spaces.map((sp, i) => (
         <FieldGroup key={i} title={`Space ${i + 1}`}>
-          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Blank' }]} />
+          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }]} />
           {sp.kind === 'blank' ? (
             <RolePick label="Blank colour" colours={baseColours} value={sp.role} onChange={v => updateSpace(i, { role: v ?? 0 })} />
           ) : (
