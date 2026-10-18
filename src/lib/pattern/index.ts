@@ -54,9 +54,10 @@ function framed(spec: Spec): Pattern {
     // A frame that ends on whole blocks shows exactly those blocks; otherwise grow past it and centre
     const fit = (w - sash) / (bw + sash)
     if (Number.isInteger(fit) && fit > 0) {
-      const rowsFit = Math.ceil((h - sash) / (bh + sash))
+      // Down locks to whole blocks too: the frame's height rounds to the nearest whole row
+      const rowsFit = Math.max(1, Math.round((h - sash) / (bh + sash)))
       const p = buildColour({ ...spec, layout: { ...spec.layout, cols: fit, rows: rowsFit } })
-      return { ...p, view: { x: 0, y: Math.max(0, (p.grid.length - h) / 2), w, h } }
+      return { ...p, view: { x: 0, y: 0, w, h: p.grid.length } }
     }
     s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }

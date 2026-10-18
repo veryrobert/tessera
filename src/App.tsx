@@ -21,6 +21,7 @@ import {
 import { LIBRARY, PRESETS, QUILT, REPEATS, SYMMETRIES, acrossToScale, blockDefaults, newSeed, quilt, randomBlock, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
+import { useStepZoom } from '@/gestures'
 
 // kaleidoscope: quilt blocks, repeats and plaids from a seed. The whole pattern lives in the URL,
 // so any look can be shared or bookmarked.
@@ -357,7 +358,19 @@ export default function App() {
   const aspect = String(spec.aspect ?? 1)
   // Build: pick a block, then how many across, the gap between, posts, and how mixed the colours are
   const across = b ? scaleToAcross(b) : 3
-  const setAcross = (n: number) => setSpec(s => { const q = asBlock(s); return { ...q, scale: acrossToScale(q, n), aspect: q.aspect ?? 1 } })
+  const withAcross = (s: Spec, n: number): Spec => { const q = asBlock(s); return { ...q, scale: acrossToScale(q, n), aspect: q.aspect ?? 1 } }
+  const setAcross = (n: number) => setSpec(s => withAcross(s, n))
+  // Pinch, drag up and down, or the wheel: blocks across, a whole block at a time.
+  // The gesture is one undo step: it checkpoints once, then steps without adding history.
+  const latest = useRef(spec)
+  latest.current = spec
+  useStepZoom(stage, {
+    value: () => (latest.current.mode === 'block' ? scaleToAcross(latest.current) : null),
+    set: n => setSpecRaw(s => withAcross(s, n)),
+    begin: () => { past.current = [...past.current.slice(-60), latest.current] },
+    min: 1,
+    max: 16,
+  })
   const setGap = (g: number) => setSpec(s => {
     const q = asBlock(s), n = scaleToAcross(q)
     const next = { ...q, layout: { ...q.layout, sashing: g } }
@@ -432,7 +445,7 @@ export default function App() {
       </Splash>
       <main
         ref={stage}
-        className="fixed inset-0 grid place-items-center p-3 transition-[right,bottom] duration-200 sm:p-16 sm:pb-24"
+        className="fixed inset-0 grid touch-none select-none place-items-center p-3 transition-[right,bottom] duration-200 sm:p-16 sm:pb-24"
         // The pattern keeps clear of the menus and any open panel
         style={phone ? { bottom: panel ? `${PHONE_SHEET * 100}dvh` : `calc(${SAFE_BOTTOM} + 56px)`, top: 'calc(env(safe-area-inset-top, 0px) + 60px)' } : { right: panel ? PANEL_W : 0 }}
       >
