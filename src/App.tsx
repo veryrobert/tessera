@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Bookmark, Copy, Download, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Copy, Download, Frame, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToolButton } from '@/components/shell/ToolButton'
@@ -33,6 +33,7 @@ const NO_SPACES: Space[] = []
 const panels = [
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
+  { id: 'canvas', label: 'Canvas', icon: Frame },
   ...(SPACES ? [{ id: 'spaces', label: 'Spaces', icon: ImagePlus } as const] : []),
   { id: 'library', label: 'Library', icon: Library },
   { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
@@ -42,7 +43,8 @@ type PanelId = (typeof panels)[number]['id']
 
 type BlockMode = Extract<Spec, { mode: 'block' }>
 
-const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
+// The shared set (as in stacker): 1:1, 4:5, 9:16, 16:9, A4; values are height over width
+const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }, { value: '1.4142', label: 'A4' }]
 const GRID_LOOKS = looks.filter(l => l.spec.mode === 'block')
 // A look opens in a square frame of its own blocks across, so it fills the square, zooms and slides
 const framedLook = (spec: Spec): Spec => { const q = spec as BlockMode; return { ...q, scale: acrossToScale(q, q.layout.cols), aspect: 1, offset: undefined } }
@@ -290,9 +292,6 @@ export default function App() {
             </Field>
           </>
         )}
-        <Field label="Format">
-          <Segmented label="Format" value={FORMATS.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: +v }))} options={FORMATS} />
-        </Field>
       </FieldGroup>
   )
 
@@ -491,15 +490,17 @@ export default function App() {
   )
 
   // Settings: how the editor shows things, not part of the pattern
-  const settingsPanel = (
-    <>
-      {layoutGroup}
-      <FieldGroup title="View">
-        <Field label="Grid lines">
-          <OnOff label="Grid lines" value={lines} onChange={setLines} />
+  const settingsPanel = layoutGroup
+  // Canvas, as in stacker (the crop icon): the artboard's shape and how it shows
+  const canvasPanel = (
+    <FieldGroup>
+        <Field label="Format">
+          <Segmented label="Format" value={FORMATS.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: +v }))} options={FORMATS} />
         </Field>
-      </FieldGroup>
-    </>
+      <Field label="Grid lines">
+        <OnOff label="Grid lines" value={lines} onChange={setLines} />
+      </Field>
+    </FieldGroup>
   )
   const patternPanel = (
     <>
@@ -560,6 +561,7 @@ export default function App() {
         {panel === 'spaces' && spacesPanel}
         {panel === 'library' && libraryPanel}
         {panel === 'settings' && settingsPanel}
+        {panel === 'canvas' && canvasPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
 
