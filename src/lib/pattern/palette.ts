@@ -14,6 +14,7 @@ export type PaletteSpec = {
   ground: Ground
   count: number // number of roles, 2–8
   preset?: PresetName // fixed colours instead of generated ones
+  mix?: PresetName[] // sets the blocks take turns between, each block in one set's colours
 }
 
 // Fixed families: one hue in four steps, role order ground, figure, dark, mid, tint

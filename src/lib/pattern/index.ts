@@ -1,6 +1,6 @@
 import { type BlockSpec, type LibraryName, generateBlock, library } from './blocks'
 import { type LayoutSpec, tile } from './layout'
-import { type PaletteSpec, makePalette } from './palette'
+import { type PaletteSpec, makePalette, presets } from './palette'
 import { type PlaidSpec, plaid, randomSett } from './plaid'
 import { type FieldSpec, field } from './field'
 import { type ComposeSpec, type Item, compose } from './compose'
@@ -88,7 +88,18 @@ function buildColour(spec: Spec): Pattern {
     return { grid, colours, mask, items: compose(spec.seed, spec.compose, colours.length) }
   }
   const block = spec.source === 'generate' ? generateBlock(fork(spec.seed, 5), spec.block) : library[spec.source]
-  // Mixed: each tile takes its own palette (same scheme, new hues), ground shared, as in a scrap quilt
+  // Mixed sets: each tile takes one of the chosen sets whole, ground and all
+  const sets = spec.palette.mix ?? []
+  if (sets.length > 1) {
+    const all: string[] = [], ways: number[][] = []
+    for (const name of sets) {
+      const set = presets[name], at = all.length
+      all.push(...set)
+      ways.push(Array.from({ length: Math.max(...sets.map(n => presets[n].length)) }, (_, role) => at + (role % set.length)))
+    }
+    return { grid: tile(block, { ...spec.layout, cycle: 'random' }, ways[0].length, ways), colours: all, mask }
+  }
+  // Mixed random: each tile takes its own palette (same scheme, new hues), ground shared, as in a scrap quilt
   const mix = spec.layout.palettes ?? 1
   if (mix > 1) {
     const n = colours.length

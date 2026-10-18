@@ -133,7 +133,6 @@ export default function App() {
   const pickBlock = (name: (typeof QUILT)[number]) => setSpec(s => keepAcross(s, { ...asBlock(s), source: name }))
   // Choosing colours brings colour in if the pattern was faded to black and white
   const coloured = (s: Spec): Spec => ((s.tone ?? 1) < 0.05 ? { ...s, tone: 1 } : s)
-  const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => coloured({ ...s, palette: { ...s.palette, ...p } }))
 
   // Pinch, drag up and down, or the wheel: blocks across, a whole block at a time.
   // The gesture is one undo step: it checkpoints once, then steps without adding history.
@@ -244,26 +243,46 @@ export default function App() {
     </>
   )
 
-  // Colour: a set or random colours, how many blocks get their own, and how much colour at all
+  // Colour: random colours or a set, mixed or not, and how much colour at all.
+  // Mix off: a tap picks the colours for every block. Mix on: taps choose the sets the blocks take
+  // turns between; Random gives every block its own random colours.
   const pal = spec.palette
+  const randomMix = (b.layout.palettes ?? 1) > 1
+  const mixing = pal.mix !== undefined || randomMix
+  const generated = (): PaletteSpec => {
+    let p = randomPalette(newSeed())
+    while (p.preset) p = randomPalette(newSeed())
+    return p
+  }
+  const setColours = (palette: PaletteSpec, palettes: number) => setSpec(s => { const q = asBlock(s); return coloured({ ...q, palette, layout: { ...q.layout, palettes } }) })
+  const setMixing = (on: boolean) => on
+    ? setColours(pal.preset ? { ...pal, mix: [pal.preset] } : { ...pal, mix: undefined }, pal.preset ? 1 : 12)
+    : setColours({ ...pal, mix: undefined, preset: pal.mix?.[0] ?? pal.preset }, 1)
+  const pickRandom = () => setColours({ ...generated(), mix: undefined }, mixing ? 12 : 1)
+  const pickSet = (name: (typeof PRESETS)[number]) => {
+    if (!mixing || randomMix) return setColours({ ...pal, preset: name, count: presets[name].length, mix: mixing ? [name] : undefined }, 1)
+    const now = pal.mix ?? []
+    const next = now.includes(name) ? (now.length > 1 ? now.filter(n => n !== name) : now) : [...now, name]
+    setColours({ ...pal, preset: next[0], count: presets[next[0]].length, mix: next }, 1)
+  }
   const colourPanel = (
     <>
-      <FieldGroup title="Colours">
-        <Tiles label="Colours" cols={3}>
-          <Tile label="Random" active={!pal.preset} onClick={() => setSpec(s => coloured(recolour(s)))}>
+      <FieldGroup>
+        <Field label="Mix">
+          <OnOff label="Mix" value={mixing} onChange={setMixing} />
+        </Field>
+        <Tiles label="Colours" cols={4}>
+          <Tile label="Random" active={mixing ? randomMix : !pal.preset} onClick={pickRandom}>
             {pal.preset ? <Shuffle className="size-5 text-muted-foreground" strokeWidth={1.5} /> : <Strip colours={makePalette(pal)} />}
           </Tile>
           {PRESETS.map(name => (
-            <Tile key={name} label={name} active={pal.preset === name} onClick={() => setPalette({ preset: name, count: presets[name].length })}>
+            <Tile key={name} label={name} active={mixing ? !randomMix && !!pal.mix?.includes(name) : pal.preset === name} onClick={() => pickSet(name)}>
               <Strip colours={presets[name]} />
             </Tile>
           ))}
         </Tiles>
       </FieldGroup>
       <FieldGroup>
-        <Field label="Mix">
-          <Slider min={1} max={16} step={1} value={[b.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix" />
-        </Field>
         <Field label="Colour">
           <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour" />
         </Field>
