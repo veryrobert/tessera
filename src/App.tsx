@@ -168,6 +168,7 @@ export default function App() {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     clone.setAttribute('width', String(Math.round(W * k)))
     clone.setAttribute('height', String(Math.round(H * k)))
+    groupByColour(clone)
     // Clip to the frame, so the spare tiles kept for sliding don't come along into Figma and the like
     const [vx, vy, vw, vh] = (clone.getAttribute('viewBox') ?? '').split(' ')
     const ns = 'http://www.w3.org/2000/svg'
@@ -398,6 +399,46 @@ export default function App() {
       </ActionDock>
     </TooltipProvider>
   )
+}
+
+// Like with like: every shape of one colour becomes one path, so each colour is a single layer
+// (named by its hex) in Figma and the like. Whole-cell squares go underneath and the shapes cut into
+// cells (triangles, curves, halves, stripes) on top, keeping the order they were drawn in.
+function groupByColour(svg: SVGSVGElement) {
+  const ns = 'http://www.w3.org/2000/svg'
+  const under = new Map<string, string[]>(), over = new Map<string, string[]>()
+  const whole = (...v: number[]) => v.every(n => Number.isInteger(n))
+  for (const el of [...svg.querySelectorAll('rect[fill], polygon[fill], path[fill]')]) {
+    if (el.closest('clipPath, [data-overlay]')) continue
+    const fill = el.getAttribute('fill')!
+    const n = (a: string) => +(el.getAttribute(a) ?? 0)
+    let d = '', layer = over
+    if (el.tagName === 'rect') {
+      const [x, y, w, h] = [n('x'), n('y'), n('width'), n('height')]
+      d = `M${x} ${y}h${w}v${h}h${-w}Z`
+      if (whole(x, y, w, h)) layer = under
+    } else if (el.tagName === 'polygon') d = `M${el.getAttribute('points')}Z`
+    else d = el.getAttribute('d') ?? ''
+    const list = layer.get(fill) ?? []
+    list.push(d)
+    layer.set(fill, list)
+    el.remove()
+  }
+  // Drop the groups that are now empty
+  for (const g of [...svg.querySelectorAll('g')].reverse()) if (!g.children.length) g.remove()
+  for (const [name, layer] of [['squares', under], ['shapes', over]] as const) {
+    if (!layer.size) continue
+    const g = document.createElementNS(ns, 'g')
+    g.id = name
+    for (const [fill, ds] of layer) {
+      const p = document.createElementNS(ns, 'path')
+      p.id = `${name}-${fill.replace('#', '')}`
+      p.setAttribute('fill', fill)
+      p.setAttribute('d', ds.join(''))
+      g.append(p)
+    }
+    svg.append(g)
+  }
 }
 
 // A palette as bands across
