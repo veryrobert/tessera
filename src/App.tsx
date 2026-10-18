@@ -14,7 +14,7 @@ import { ActionDock } from '@/components/shell/ActionDock'
 import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/layout'
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
-import { type LayoutSpec, type PaletteSpec, type Spec, build, decode, encode, makePalette, presets } from '@/lib/pattern'
+import { type LayoutSpec, type PaletteSpec, type Spec, build, decode, encode, library, makePalette, presets } from '@/lib/pattern'
 import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, newSeed, quilt, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
@@ -36,6 +36,8 @@ type BlockMode = Extract<Spec, { mode: 'block' }>
 
 const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
 const GRID_LOOKS = looks.filter(l => l.spec.mode === 'block')
+// Block tiles run small to big: by cells across, then down
+const BLOCKS = [...QUILT].sort((a, b) => library[a][0].length - library[b][0].length || library[a].length - library[b].length)
 
 // A fresh random quilt in random colours each time the app opens without a link
 const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()))
@@ -110,10 +112,23 @@ export default function App() {
     begin: () => { past.current = [...past.current.slice(-60), latest.current] },
     min: 1,
     max: 16,
+    offset: () => latest.current.offset ?? [0, 0],
+    slide: (x, y) => setSpecRaw(s => ({ ...s, offset: [x, y] })),
+    cellPx: () => {
+      const el = stage.current?.querySelector('svg'), v = build(latest.current).view
+      return el && v ? Math.min(el.clientWidth / v.w, el.clientHeight / v.h) : 20
+    },
   })
 
   // ---------- Export ----------
-  const svgEl = () => stage.current?.querySelector('svg') ?? null
+  // The pattern as it exports: without the editing grid
+  const svgEl = () => {
+    const el = stage.current?.querySelector('svg')
+    if (!el) return null
+    const clone = el.cloneNode(true) as SVGSVGElement
+    clone.querySelectorAll('[data-overlay]').forEach(n => n.remove())
+    return clone
+  }
   const save = (blob: Blob, name: string) => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -130,7 +145,7 @@ export default function App() {
     if (!el) return
     const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length
     const k = long / Math.max(W, H), w = Math.round(W * k), h = Math.round(H * k)
-    const clone = el.cloneNode(true) as SVGSVGElement
+    const clone = el
     clone.setAttribute('width', String(w))
     clone.setAttribute('height', String(h))
     const img = new Image()
@@ -160,9 +175,9 @@ export default function App() {
     <>
       <FieldGroup title="Block">
         <Tiles label="Block">
-          {QUILT.map(name => (
+          {BLOCKS.map(name => (
             <Tile key={name} label={name} active={b.source === name} onClick={() => pickBlock(name)}>
-              <PatternSvg pattern={build({ ...b, source: name, scale: undefined, mask: undefined, layout: { ...b.layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', invert: false, palettes: 1 } })} className="size-full" />
+              <PatternSvg pattern={build({ ...b, source: name, tone: 0, scale: undefined, offset: undefined, mask: undefined, layout: { ...b.layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', invert: false, palettes: 1 } })} className="size-full" lines />
             </Tile>
           ))}
         </Tiles>
@@ -227,7 +242,9 @@ export default function App() {
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
       {GRID_LOOKS.map(l => (
-        <Tile key={l.name} label={l.name} active={encode(l.spec) === encode(spec)} onClick={() => setSpec(l.spec)}>
+        <Tile key={l.name} label={l.name} active={b.source === (l.spec as BlockMode).source && b.layout.repeat === (l.spec as BlockMode).layout.repeat && JSON.stringify(l.spec.palette) === JSON.stringify(spec.palette)}
+          // A look takes a frame of its own blocks across, so it zooms and slides like the rest
+          onClick={() => setSpec(() => { const q = l.spec as BlockMode; return { ...q, scale: acrossToScale(q, q.layout.cols), aspect: 1 } })}>
           <PatternSvg pattern={build(l.spec)} className="size-full" />
         </Tile>
       ))}
@@ -254,11 +271,12 @@ export default function App() {
       </Splash>
       <main
         ref={stage}
+        data-keep-panel
         className="fixed inset-0 grid touch-none select-none place-items-center p-3 transition-[right,bottom] duration-200 sm:p-16 sm:pb-24"
         // The pattern keeps clear of the menus and any open panel
         style={phone ? { bottom: panel ? `${PHONE_SHEET * 100}dvh` : `calc(${SAFE_BOTTOM} + 56px)`, top: 'calc(env(safe-area-inset-top, 0px) + 60px)' } : { right: panel ? PANEL_W : 0 }}
       >
-        <PatternSvg pattern={pattern} className="size-full" />
+        <PatternSvg pattern={pattern} className="size-full" lines />
       </main>
 
       <PanelRail panels={panels} open={panel} onToggle={id => setPanel(panel === id ? null : id)} phone={phone} />

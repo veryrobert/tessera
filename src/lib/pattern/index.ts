@@ -23,7 +23,8 @@ export type Mask = { shape: 'none' | 'circle' | 'arch' | 'diamond'; role: number
 // tone: 0 is black and white (greys ranked by lightness), 1 full colour, in between a blend
 // scale: cells across a fixed frame (aspect is its height over width). Set, the pattern repeats to
 // fill the frame and scale zooms it smoothly; unset, the frame fits the layout's tiles.
-type Common = { seed: number; palette: PaletteSpec; mask?: Mask; tone?: number; scale?: number; aspect?: number }
+// offset: how far the pattern is slid under the frame, in cells
+type Common = { seed: number; palette: PaletteSpec; mask?: Mask; tone?: number; scale?: number; aspect?: number; offset?: [number, number] }
 export type Spec = Common & (
   | { mode: 'block'; source: LibraryName | 'generate'; block: BlockSpec; layout: LayoutSpec }
   | { mode: 'plaid'; plaid: Omit<PlaidSpec, 'sett'> & { sett: PlaidSpec['sett'] | null } }
@@ -56,8 +57,13 @@ function framed(spec: Spec): Pattern {
     if (Number.isInteger(fit) && fit > 0) {
       // Down locks to whole blocks too: the frame's height rounds to the nearest whole row
       const rowsFit = Math.max(1, Math.round((h - sash) / (bh + sash)))
-      const p = buildColour({ ...spec, layout: { ...spec.layout, cols: fit, rows: rowsFit } })
-      return { ...p, view: { x: 0, y: 0, w, h: p.grid.length } }
+      // Two spare tiles each side, so the pattern can slide under the frame; the slide wraps every
+      // two tiles (a mirrored repeat's period), so the frame never runs off the edge
+      const M = 2, pw = bw + sash, ph = bh + sash
+      const wrap = (v: number, p: number) => ((((v % (2 * p)) + 3 * p) % (2 * p)) - p)
+      const [ox, oy] = spec.offset ?? [0, 0]
+      const p = buildColour({ ...spec, layout: { ...spec.layout, cols: fit + 2 * M, rows: rowsFit + 2 * M } })
+      return { ...p, view: { x: M * pw - wrap(ox, pw), y: M * ph - wrap(oy, ph), w, h: rowsFit * ph + sash } }
     }
     s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }

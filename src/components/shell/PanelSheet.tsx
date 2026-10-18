@@ -24,10 +24,11 @@ export function PanelSheet({
         className="panel gap-0 data-[side=bottom]:rounded-t-2xl data-[side=bottom]:border-x-0 data-[side=right]:sm:max-w-none"
         style={phone ? { height: `${PHONE_SHEET * 100}dvh` } : { width: `min(${PANEL_W}px, 86vw)` }}
         // Clicking off the panel closes it, except on the panel buttons (they switch panels) and in
-        // anything opened from the panel, like a dialog, menu or tooltip
+        // anything opened from the panel, like a dialog, menu or tooltip, or anything marked data-keep-panel
+        // (a stage you drag or pinch while the panel is open)
         onInteractOutside={e => {
           const t = e.target as Element | null
-          if (t?.closest('[aria-label="Panels"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')) e.preventDefault()
+          if (t?.closest('[aria-label="Panels"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper], [data-keep-panel]')) e.preventDefault()
         }}
       >
         <SheetHeader>

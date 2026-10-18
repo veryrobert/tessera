@@ -74,7 +74,8 @@ function itemParts(it: Item, fill: (r: number) => string, key: string) {
   )
 }
 
-export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pattern: Pattern; className?: string }) {
+// lines: a light cell grid over the pattern, for editing (marked data-overlay so exports can drop it)
+export const PatternSvg = memo(function PatternSvg({ pattern, className, lines }: { pattern: Pattern; className?: string; lines?: boolean }) {
   const { grid, colours } = pattern
   const id = useId()
   const H = grid.length, W = grid[0]?.length ?? 0
@@ -103,12 +104,20 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pat
   const mask = pattern.mask
   // The grid runs past the frame when it's scaled, and an SVG paints outside its viewBox
   // wherever the element is a different shape, so clip to the frame
+  const overlay = lines && (
+    <g data-overlay stroke="rgb(128 128 128 / 0.45)" strokeWidth={1} vectorEffect="non-scaling-stroke" fill="none">
+      <path vectorEffect="non-scaling-stroke" d={[
+        ...Array.from({ length: Math.floor(v.w) + 2 }, (_, i) => `M${Math.ceil(v.x) + i},${v.y}v${v.h}`),
+        ...Array.from({ length: Math.floor(v.h) + 2 }, (_, i) => `M${v.x},${Math.ceil(v.y) + i}h${v.w}`),
+      ].join('')} />
+    </g>
+  )
   const frame = <clipPath id={id + 'f'}><rect x={v.x} y={v.y} width={v.w} height={v.h} /></clipPath>
   if (!mask) {
     return (
       <svg viewBox={box} className={className} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
         <defs>{frame}</defs>
-        <g clipPath={`url(#${id}f)`}>{parts}</g>
+        <g clipPath={`url(#${id}f)`}>{parts}{overlay}</g>
       </svg>
     )
   }

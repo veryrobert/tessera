@@ -1,9 +1,10 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
-// Zoom by gesture, locked to whole steps so it clicks: pinch, drag up or down, or the wheel and
-// trackpad pinch on desktop. Each step pulses the pattern and ticks on phones that can vibrate.
+// Gestures on the pattern, each locked to whole steps so it clicks:
+//   pinch (or the wheel and trackpad pinch) zooms, a whole block at a time, with a pulse
+//   one finger or the mouse drags the pattern under the frame, a whole cell at a time
+// Steps tick on phones that can vibrate.
 
-const DRAG_STEP = 36 // px of drag per step
 const WHEEL_STEP = 60 // wheel delta per step
 
 type Options = {
@@ -12,6 +13,10 @@ type Options = {
   begin: () => void // once per gesture, before its first step (for undo)
   min: number
   max: number
+  // Sliding: the current offset in cells, setting it, and how many px one cell is on screen
+  offset: () => [number, number]
+  slide: (x: number, y: number) => void
+  cellPx: () => number
 }
 
 export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options) {
@@ -23,7 +28,7 @@ export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options)
     if (!node) return
     const calm = matchMedia('(prefers-reduced-motion: reduce)').matches
     const pointers = new Map<number, { x: number; y: number }>()
-    let start: { v: number; y: number; d: number; began: boolean } | null = null
+    let start: { v: number; x: number; y: number; d: number; o: [number, number]; at: [number, number]; began: boolean } | null = null
     let current = 0
     let wheel = 0, wheelTimer = 0
 
@@ -45,8 +50,9 @@ export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options)
       const v = opts.current.value()
       if (v === null) { start = null; return }
       current = v
-      const ys = [...pointers.values()].map(p => p.y)
-      start = { v, y: ys.reduce((s, y) => s + y, 0) / ys.length, d: pointers.size === 2 ? spread() : 0, began: start?.began ?? false }
+      const ps = [...pointers.values()]
+      const o = opts.current.offset()
+      start = { v, x: ps[0].x, y: ps[0].y, d: pointers.size === 2 ? spread() : 0, o, at: o, began: start?.began ?? false }
     }
 
     const down = (e: PointerEvent) => {
@@ -62,8 +68,14 @@ export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options)
         // Spread to zoom in (fewer, bigger blocks), pinch to zoom out
         step(Math.round(start.v / (spread() / start.d)))
       } else if (pointers.size === 1) {
-        // Drag down for more blocks, up for fewer
-        step(start.v + Math.round((e.clientY - start.y) / DRAG_STEP))
+        // Slide the pattern, a whole cell at a time
+        const c = Math.max(1, opts.current.cellPx())
+        const to: [number, number] = [start.o[0] + Math.round((e.clientX - start.x) / c), start.o[1] + Math.round((e.clientY - start.y) / c)]
+        if (to[0] === start.at[0] && to[1] === start.at[1]) return
+        if (!start.began) { opts.current.begin(); start.began = true }
+        start.at = to
+        opts.current.slide(...to)
+        navigator.vibrate?.(4)
       }
     }
     const up = (e: PointerEvent) => {
@@ -80,7 +92,7 @@ export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options)
       clearTimeout(wheelTimer)
       wheelTimer = window.setTimeout(() => { wheel = 0 }, 200)
       if (Math.abs(wheel) < WHEEL_STEP) return
-      if (!start) { start = { v, y: 0, d: 0, began: false }; current = v }
+      if (!start) { start = { v, x: 0, y: 0, d: 0, o: [0, 0], at: [0, 0], began: false }; current = v }
       step(current + Math.sign(wheel))
       wheel = 0
       window.setTimeout(() => { if (!pointers.size) start = null }, 300)
