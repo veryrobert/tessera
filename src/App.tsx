@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Bookmark, Download, Eye, Library, Grid2x2, Grid3x3, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Download, Eye, Library, Settings, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -38,6 +38,7 @@ const panels = [
   { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'export', label: 'Export', icon: Download },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ] as const
 type PanelId = (typeof panels)[number]['id']
 
@@ -490,6 +491,15 @@ export default function App() {
     </Tiles>
   )
 
+  // Settings: how the editor shows things, not part of the pattern
+  const settingsPanel = (
+    <FieldGroup>
+      <Field label="Grid lines">
+        <OnOff label="Grid lines" value={lines} onChange={setLines} />
+      </Field>
+    </FieldGroup>
+  )
+
   const exportPanel = (
     <>
       <FieldGroup>
@@ -542,6 +552,7 @@ export default function App() {
         {panel === 'spaces' && spacesPanel}
         {panel === 'looks' && looksPanel}
         {panel === 'library' && libraryPanel}
+        {panel === 'settings' && settingsPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
 
@@ -553,7 +564,6 @@ export default function App() {
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
           <ToolButton icon={Bookmark} label="Save" side="top" onClick={savePattern} />
           <ToolbarSeparator />
-          <ToolButton icon={Grid3x3} label={lines ? 'Hide grid' : 'Show grid'} side="top" active={lines} onClick={() => setLines(v => !v)} />
           <ToolButton icon={Download} label="Download PNG" side="top" onClick={exportPng} />
         </Toolbar>
       </ActionDock>
