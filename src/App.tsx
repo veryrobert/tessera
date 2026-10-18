@@ -69,8 +69,10 @@ export default function App() {
   const [downloads, setDownloads] = useState<DownloadRecord[]>([])
   const [libTab, setLibTab] = useState<'saved' | 'downloads'>('saved')
   useEffect(() => { listSaved().then(setSaved); listDownloads().then(setDownloads) }, [])
-  const [lines, setLines] = useState(() => { try { return localStorage.getItem('tessera:lines') !== 'off' } catch { return true } })
-  useEffect(() => { try { localStorage.setItem('tessera:lines', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
+  // The light grid over the pattern, off by default; the choice is remembered on this device
+  // (a new key, so devices that stored the old on-by-default start off too)
+  const [lines, setLines] = useState(() => { try { return localStorage.getItem('tessera:grid') === 'on' } catch { return false } })
+  useEffect(() => { try { localStorage.setItem('tessera:grid', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
   const stage = useRef<HTMLElement>(null)
   const current = panels.find(p => p.id === panel)
 
