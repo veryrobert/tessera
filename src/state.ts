@@ -97,16 +97,15 @@ export const scaleToAcross = (s: Extract<Spec, { mode: 'block' }>) =>
 
 export function quilt(seed: number, palette: PaletteSpec, keep: { aspect?: number; tone?: number; mask?: Spec['mask'] } = {}): Spec {
   const r = rng(seed)
-  const source = pick(r, QUILT)
+  // Plain is all ground and only shows with a gap, so random quilts leave it out
+  const source = pick(r, QUILT.filter(q => q !== 'plain'))
   const across = pick(r, [1, 2, 2, 3, 3, 4, 5])
-  const sashing = source === 'plain' || r() < 0.45 ? 1 : 0
+  const sashing = 0 // no gap by default, so the frame's corners start on whole blocks; Gap adds one
   const s: Extract<Spec, { mode: 'block' }> = {
     mode: 'block', seed, source, block: randomBlock(seed), palette, ...keep, aspect: keep.aspect ?? 1,
     layout: {
       cols: across, rows: across, repeat: across === 1 ? 'grid' : pick(r, ['grid', 'grid', 'mirror', 'twist', 'twist', 'pinwheel']),
-      // A plain block is all ground, so its gaps take a colour (a lattice); otherwise gaps are ground
-      invert: false, sashing, sashRole: source === 'plain' ? pick(r, [1, 2]) : 0,
-      postRole: source === 'plain' ? pick(r, [0, 3]) : sashing && r() < 0.7 ? 2 : null,
+      invert: false, sashing, sashRole: 0, postRole: null,
       colourways: 1, cycle: 'random', seed, palettes: pick(r, [1, 1, 4, 8, 12]),
     },
   }
