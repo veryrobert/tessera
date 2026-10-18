@@ -27,11 +27,11 @@ export type LayoutSpec = {
 }
 
 export function tile(block: Grid, spec: LayoutSpec, roles: number, waysOverride?: number[][]): Grid {
-  const n = block.length
+  const bh = block.length, bw = block[0].length, n = bw
   const s = spec.sashing
-  const p = n + s // one tile plus its strip
-  const W = spec.cols * p + s
-  const H = spec.rows * p + s
+  const pw = bw + s, ph = bh + s // one tile plus its strip
+  const W = spec.cols * pw + s
+  const H = spec.rows * ph + s
   const ways = waysOverride ?? colourways(spec.seed, spec.colourways, roles)
   const pickWay = fork(spec.seed, 3)
   const wayFor = new Map<string, number[]>()
@@ -42,6 +42,8 @@ export function tile(block: Grid, spec: LayoutSpec, roles: number, waysOverride?
 
   // A pinwheel repeat turns four tiles around a shared corner. If that makes a hooked cross, mirror instead.
   let repeat = spec.repeat
+  // Turning and the lattice need square tiles; rectangles mirror instead
+  if (bw !== bh && (repeat === 'pinwheel' || repeat === 'lattice')) repeat = 'mirror'
   if (repeat === 'pinwheel') {
     const q = [get('id'), get('r90'), get('r270'), get('r180')]
     const four: Grid = Array.from({ length: 2 * n }, (_, y) =>
@@ -78,16 +80,16 @@ export function tile(block: Grid, spec: LayoutSpec, roles: number, waysOverride?
         continue
       }
       let x = gx - s, y = gy - s
-      const cx = Math.floor(x / p)
-      if (spec.repeat === 'half drop' && cx % 2) y += Math.floor(p / 2)
-      const cy = Math.floor(y / p)
-      if (spec.repeat === 'brick' && cy % 2) x += Math.floor(p / 2)
+      const cx = Math.floor(x / pw)
+      if (spec.repeat === 'half drop' && cx % 2) y += Math.floor(ph / 2)
+      const cy = Math.floor(y / ph)
+      if (spec.repeat === 'brick' && cy % 2) x += Math.floor(pw / 2)
       if (spec.repeat === 'step') x -= cy * (spec.shift ?? 1) // each row slides one cell, so posts run diagonally
-      const tx = Math.floor(x / p), ty = Math.floor(y / p)
-      const lx = ((x % p) + p) % p, ly = ((y % p) + p) % p
+      const tx = Math.floor(x / pw), ty = Math.floor(y / ph)
+      const lx = ((x % pw) + pw) % pw, ly = ((y % ph) + ph) % ph
 
-      if (lx >= n || ly >= n || gx < s || gy < s) {
-        const inX = lx >= n || gx < s, inY = ly >= n || gy < s
+      if (lx >= bw || ly >= bh || gx < s || gy < s) {
+        const inX = lx >= bw || gx < s, inY = ly >= bh || gy < s
         row.push({ role: inX && inY && spec.postRole !== null ? spec.postRole : spec.sashRole })
         continue
       }

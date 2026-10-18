@@ -2,15 +2,17 @@ import type { Cell, Corner, Shape, Side } from './types'
 
 // The eight moves of a square (dihedral group D4) as coordinate maps on an n×n grid,
 // x right, y down, m = n - 1. The same maps move corners and sides, using m = 1.
-export type Move = (x: number, y: number, m: number) => [number, number]
+// A rectangle (mh = its height - 1) only keeps id, mx, my and r180.
+export type Move = (x: number, y: number, m: number, mh?: number) => [number, number]
+export const RECT_MOVES = ['id', 'mx', 'my', 'r180'] as const
 
 export const moves = {
   id: (x, y) => [x, y],
   r90: (x, y, m) => [m - y, x],
-  r180: (x, y, m) => [m - x, m - y],
+  r180: (x, y, m, mh = m) => [m - x, mh - y],
   r270: (x, y, m) => [y, m - x],
   mx: (x, y, m) => [m - x, y],
-  my: (x, y, m) => [x, m - y],
+  my: (x, y, m, mh = m) => [x, mh - y],
   diag: (x, y) => [y, x],
   anti: (x, y, m) => [m - y, m - x],
 } satisfies Record<string, Move>
@@ -43,12 +45,13 @@ export function moveShape(shape: Shape, g: Move): Shape {
 
 export const moveCell = (c: Cell, g: Move): Cell => ({ ...c, shape: c.shape && moveShape(c.shape, g) })
 
+// Square grids take any move; rectangles only the moves that keep their shape (RECT_MOVES)
 export function moveGrid(grid: Cell[][], g: Move): Cell[][] {
-  const n = grid.length
-  const out: Cell[][] = Array.from({ length: n }, () => Array<Cell>(n))
-  for (let y = 0; y < n; y++)
-    for (let x = 0; x < n; x++) {
-      const [tx, ty] = g(x, y, n - 1)
+  const h = grid.length, w = grid[0].length
+  const out: Cell[][] = Array.from({ length: h }, () => Array<Cell>(w))
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const [tx, ty] = g(x, y, w - 1, h - 1)
       out[ty][tx] = moveCell(grid[y][x], g)
     }
   return out

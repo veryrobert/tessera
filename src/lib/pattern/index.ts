@@ -44,8 +44,10 @@ function framed(spec: Spec): Pattern {
   const W = Math.ceil(w) + 1, H = Math.ceil(h) + 1
   let s: Spec
   if (spec.mode === 'block') {
-    const n = (spec.source === 'generate' ? spec.block.size : library[spec.source].length) + spec.layout.sashing
-    s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / n) + 1, rows: Math.ceil(H / n) + 1 } }
+    const bw = spec.source === 'generate' ? spec.block.size : library[spec.source][0].length
+    const bh = spec.source === 'generate' ? spec.block.rows ?? spec.block.size : library[spec.source].length
+    const sash = spec.layout.sashing
+    s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }
   else s = { ...spec, field: { ...spec.field, cols: W, rows: H } }
   const p = buildColour(s)

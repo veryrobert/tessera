@@ -1,5 +1,5 @@
 import { type Rng, int, pick, weighted } from './random'
-import { type Move, moves, moveCell, sameShape } from './transform'
+import { type Move, RECT_MOVES, moves, moveCell, sameShape } from './transform'
 import { hooked } from './guard'
 import { type Cell, type Corner, type Grid, type Shape, type Side, FULL } from './types'
 
@@ -98,7 +98,8 @@ export type ShapeMix = { tri: number; quarter: number; half: number; split: numb
 export const squaresOnly: ShapeMix = { tri: 0, quarter: 0, half: 0, split: 0, bars: 0 }
 
 export type BlockSpec = {
-  size: number // cells per side, 2–8 is the useful range
+  size: number // cells across, 2–8 is the useful range
+  rows?: number // cells down, when it differs from across (a rectangle keeps only mirror symmetry)
   symmetry: Symmetry
   roles: number // how many colour roles the block uses, including ground
   density: number // 0–1, share of cells that are not ground
@@ -130,7 +131,7 @@ function randomCell(r: Rng, spec: BlockSpec): Cell {
 
 export function generateBlock(r: Rng, spec: BlockSpec): Grid {
   // Turn-only symmetry with no mirror can make hooked crosses. Reroll those, then give up on turning.
-  if (spec.symmetry === 'rotate') {
+  if (spec.symmetry === 'rotate' && (spec.rows ?? spec.size) === spec.size) {
     for (let i = 0; i < 24; i++) {
       const g = fill(r, spec)
       if (!hooked(g)) return g
@@ -141,17 +142,21 @@ export function generateBlock(r: Rng, spec: BlockSpec): Grid {
 }
 
 function fill(r: Rng, spec: BlockSpec): Grid {
-  const n = spec.size
-  const group: Move[] = symmetries[spec.symmetry].map(k => moves[k])
-  const grid: (Cell | undefined)[][] = Array.from({ length: n }, () => Array(n).fill(undefined))
+  const w = spec.size, h = spec.rows ?? spec.size
+  // A rectangle can't turn or flip on its diagonal: keep the mirrors (a turning symmetry becomes both)
+  const names = w === h ? symmetries[spec.symmetry]
+    : (symmetries[spec.symmetry] as readonly string[]).some(k => k !== 'id' && k !== 'mx') && spec.symmetry !== 'mirror'
+      ? RECT_MOVES : symmetries[spec.symmetry].filter(k => (RECT_MOVES as readonly string[]).includes(k))
+  const group: Move[] = names.map(k => moves[k as keyof typeof moves])
+  const grid: (Cell | undefined)[][] = Array.from({ length: h }, () => Array(w).fill(undefined))
 
-  for (let y = 0; y < n; y++)
-    for (let x = 0; x < n; x++) {
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
       if (grid[y][x]) continue
       let c = randomCell(r, spec)
       // Where the symmetry maps a cell onto itself with a different shape (a triangle on the
       // diagonal of a fully symmetric block), the cell can't hold that shape, so fall back to a square.
-      const orbit = group.map(g => ({ pos: g(x, y, n - 1), g }))
+      const orbit = group.map(g => ({ pos: g(x, y, w - 1, h - 1), g }))
       const clash = orbit.some(({ pos: [px, py], g }) => px === x && py === y && !sameShape(moveCell(c, g).shape, c.shape))
         || orbit.some((a, i) => orbit.some((b, j) => j > i && a.pos[0] === b.pos[0] && a.pos[1] === b.pos[1]
           && !sameShape(moveCell(c, a.g).shape, moveCell(c, b.g).shape)))

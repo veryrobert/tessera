@@ -172,8 +172,11 @@ export default function App() {
       )}
       {b?.source === 'generate' && (
         <FieldGroup title="Generate">
-          <Field label="Size">
-            <Slider min={2} max={8} step={1} value={[b.block.size]} onValueChange={([v]) => setBlock({ size: v })} aria-label="Size" />
+          <Field label="Across">
+            <Slider min={1} max={10} step={1} value={[b.block.size]} onValueChange={([v]) => setBlock({ size: v, rows: b.block.rows ?? b.block.size })} aria-label="Cells across" />
+          </Field>
+          <Field label="Down">
+            <Slider min={1} max={10} step={1} value={[b.block.rows ?? b.block.size]} onValueChange={([v]) => setBlock({ rows: v })} aria-label="Cells down" />
           </Field>
           <Field label="Symmetry">
             <Choices label="Symmetry" value={b.block.symmetry} onChange={v => setBlock({ symmetry: v })} options={SYMMETRIES} />
@@ -356,8 +359,11 @@ export default function App() {
       <Field label="Format">
         <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
       </Field>
-      <Field label="Split">
-        <Slider min={2} max={8} step={1} value={[b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ size: v })} aria-label="Split" />
+      <Field label="Split across">
+        <Slider min={1} max={10} step={1} value={[b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ size: v, rows: b?.block.rows ?? b?.block.size ?? 4 })} aria-label="Split across" />
+      </Field>
+      <Field label="Split down">
+        <Slider min={1} max={10} step={1} value={[b?.block.rows ?? b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ rows: v })} aria-label="Split down" />
       </Field>
       <Field label="Depth">
         <Slider min={2} max={6} step={1} value={[b?.block.roles ?? 2]} onValueChange={([v]) => setDepth(v)} aria-label="Depth" />
