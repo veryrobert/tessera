@@ -28,35 +28,12 @@ export const PORTRAITS = [
   { path: 'photo-1567479169571-44be2b9916b2', by: 'labmagik' },
 ] as const
 
-// Soft gradients and colour blurs, also from Unsplash, for when a space wants colour, not a face
-export const ABSTRACT = [
-  { path: 'photo-1604342427523-189b17048839', by: 'magellol' },
-  { path: 'photo-1647724065002-1bacc096d006', by: 'mihaiteslariu0' },
-  { path: 'photo-1697725690884-012c8cd25f30', by: 'mihaiteslariu0' },
-  { path: 'photo-1579547944212-c4f4961a8dd8', by: 'codioful' },
-  { path: 'photo-1647724065041-628d5b61c145', by: 'mihaiteslariu0' },
-  { path: 'photo-1615715757462-9ce10a340052', by: 'codioful' },
-  { path: 'photo-1607567494076-ab61e59e841a', by: 'lover1212' },
-  { path: 'photo-1495921015075-c888398b885e', by: 'nicolasladinosilva' },
-  { path: 'photo-1604079628040-94301bb21b91', by: 'mymind' },
-  { path: 'photo-1658998765621-2cf0f12e059f', by: 'radoslavbali' },
-  { path: 'photo-1604076947037-d909e2f10fca', by: 'mymind' },
-  { path: 'photo-1658998765622-962cb51e7888', by: 'radoslavbali' },
-  { path: 'photo-1604076913837-52ab5629fba9', by: 'mymind' },
-  { path: 'photo-1646038572806-3d5f4252c567', by: 'vinhundred' },
-  { path: 'photo-1646038572815-43fe759e459b', by: 'vinhundred' },
-  { path: 'photo-1604076984203-587c92ab2e58', by: 'mymind' },
-] as const
-
-export type ImageSet = 'people' | 'abstract'
-const SETS = { people: PORTRAITS, abstract: ABSTRACT }
-export const setOf = (image?: string): ImageSet => (ABSTRACT.some(q => `s:${q.path}` === image) ? 'abstract' : 'people')
-export const randomImage = (set: ImageSet, not?: string) => {
-  const pool = SETS[set].filter(p => `s:${p.path}` !== not)
+export const randomImage = (not?: string) => {
+  const pool = PORTRAITS.filter(p => `s:${p.path}` !== not)
   return `s:${pool[Math.floor(Math.random() * pool.length)].path}`
 }
 export const credit = (image?: string) => {
-  const p = image?.startsWith('s:') && [...PORTRAITS, ...ABSTRACT].find(q => `s:${q.path}` === image)
+  const p = image?.startsWith('s:') && PORTRAITS.find(q => `s:${q.path}` === image)
   return p ? `Photo: @${p.by}, Unsplash` : null
 }
 

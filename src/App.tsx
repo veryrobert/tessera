@@ -15,11 +15,11 @@ import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
 import { type LayoutSpec, type PaletteSpec, type Spec, build, decode, encode, library, makePalette, presets } from '@/lib/pattern'
-import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, newSeed, quilt, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
+import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, blockWidth, newSeed, quilt, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
-import { type ImageSet, type Space, LAYOUTS, addUpload, credit, loadImage, randomImage, setOf } from '@/spaces'
+import { type Space, LAYOUTS, addUpload, credit, loadImage, randomImage } from '@/spaces'
 import type { Cutout } from '@/components/pattern/PatternSvg'
 
 // tessera: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
@@ -332,14 +332,17 @@ export default function App() {
   const spaces = spec.spaces ?? []
   const setSpaces = (f: (all: Space[]) => Space[]) => setSpec(s => ({ ...s, spaces: f(s.spaces ?? []) }))
   const updateSpace = (i: number, p: Partial<Space>) => setSpaces(all => all.map((sp, j) => (j === i ? { ...sp, ...p } : sp)))
-  const [imageSet, setImageSet] = useState<ImageSet>('people')
   // Type sits on the palette's lightest colour to start, as on the Waybill posters
   const lightest = () => {
     const lum = (c: string) => [1, 3, 5].reduce((t, i, k) => t + parseInt(c.slice(i, i + 2), 16) * [0.2126, 0.7152, 0.0722][k], 0)
     return baseColours.reduce((best, c, i) => (lum(c) > lum(baseColours[best]) ? i : best), 0)
   }
-  const applyLayout = (parts: (typeof LAYOUTS)[number]['parts']) =>
-    setSpaces(() => parts.map(p => ({ ...p, role: lightest(), image: p.kind === 'image' ? randomImage(imageSet) : undefined })))
+  // Layouts are drawn in quarters, so they set the pattern to four blocks across: every photo and
+  // type space is then whole blocks, as on the Waybill posts
+  const applyLayout = (parts: (typeof LAYOUTS)[number]['parts']) => setSpec(s => ({
+    ...(parts.length ? keepAcross(s, asBlock(s), 4) : s),
+    spaces: parts.map(p => ({ ...p, role: lightest(), image: p.kind === 'image' ? randomImage() : undefined })),
+  }))
   const sameLayout = (parts: (typeof LAYOUTS)[number]['parts']) =>
     parts.length === spaces.length && parts.every((p, i) => ['x', 'y', 'w', 'h', 'kind'].every(k => p[k as keyof typeof p] === spaces[i][k as keyof Space]))
 
@@ -363,8 +366,9 @@ export default function App() {
     return [Math.max(0, Math.min(Math.ceil(view.w) - 1, Math.floor((e.clientX - r.left) / c))), Math.max(0, Math.min(Math.ceil(view.h) - 1, Math.floor((e.clientY - r.top) / c)))]
   }
   const draftSpace = (d: NonNullable<typeof draft>): Space => {
-    const x0 = Math.min(d.a[0], d.b[0]), x1 = Math.max(d.a[0], d.b[0]) + 1, y0 = Math.min(d.a[1], d.b[1]), y1 = Math.max(d.a[1], d.b[1]) + 1
-    return { x: x0 / view.w, y: y0 / view.h, w: (x1 - x0) / view.w, h: (y1 - y0) / view.h, kind: 'image', role: 0, image: randomImage(imageSet) }
+    const bx = (c: number) => Math.floor(c / pitchX) * pitchX, by = (c: number) => Math.floor(c / pitchY) * pitchY
+    const x0 = bx(Math.min(d.a[0], d.b[0])), x1 = bx(Math.max(d.a[0], d.b[0])) + pitchX, y0 = by(Math.min(d.a[1], d.b[1])), y1 = by(Math.max(d.a[1], d.b[1])) + pitchY
+    return { x: x0 / view.w, y: y0 / view.h, w: (x1 - x0) / view.w, h: (y1 - y0) / view.h, kind: 'image', role: lightest(), image: randomImage() }
   }
   const drawHandlers = drawingRef.current ? {
     onPointerDown: (e: React.PointerEvent) => { e.currentTarget.setPointerCapture(e.pointerId); const c = cellAt(e); setDraft({ a: c, b: c }) },
@@ -372,12 +376,16 @@ export default function App() {
     onPointerUp: () => { if (draft) { const sp = draftSpace(draft); setSpaces(all => [...all, sp]) } setDraft(null) },
   } : {}
 
-  // Spaces as drawn: snapped to whole cells of the frame as it is now
+  // Spaces as drawn: snapped to whole blocks of the frame as it is now (a block and its gap)
+  const pitchX = blockWidth(b) + b.layout.sashing
+  const pitchY = (b.source === 'generate' ? b.block.rows ?? b.block.size : library[b.source].length) + b.layout.sashing
+  const snapTo = (v: number, size: number, pitch: number) => Math.max(0, Math.min(size, Math.round((v * size) / pitch) * pitch))
   const cutouts: Cutout[] = [...spaces, ...(draft ? [{ ...draftSpace(draft), image: undefined, kind: 'blank' as const }] : [])].map((sp, i) => {
-    const x0 = Math.round(sp.x * view.w), x1 = Math.round((sp.x + sp.w) * view.w), y0 = Math.round(sp.y * view.h), y1 = Math.round((sp.y + sp.h) * view.h)
+    const x0 = snapTo(sp.x, view.w, pitchX), x1 = Math.max(x0 + pitchX, snapTo(sp.x + sp.w, view.w, pitchX))
+    const y0 = snapTo(sp.y, view.h, pitchY), y1 = Math.max(y0 + pitchY, snapTo(sp.y + sp.h, view.h, pitchY))
     const isDraft = draft && i === spaces.length
     return {
-      x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0),
+      x: x0, y: y0, w: Math.min(view.w, x1) - x0, h: Math.min(view.h, y1) - y0,
       fill: isDraft ? 'rgb(255 255 255 / 0.55)' : sp.kind === 'blank' ? pattern.colours[sp.role] : 'rgb(128 128 128 / 0.35)',
       href: sp.kind === 'image' && sp.image ? hrefs[sp.image] : undefined,
     }
@@ -395,22 +403,19 @@ export default function App() {
         </Tiles>
       </FieldGroup>
       <FieldGroup>
-        <Field label="Images">
-          <Segmented<ImageSet> label="Images" value={imageSet} onChange={setImageSet} options={[{ value: 'people', label: 'People' }, { value: 'abstract', label: 'Abstract' }]} />
-        </Field>
         <Field label="Draw a space">
           <OnOff label="Draw a space" value={drawing} onChange={setDrawing} />
         </Field>
       </FieldGroup>
       {spaces.map((sp, i) => (
         <FieldGroup key={i} title={`Space ${i + 1}`}>
-          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage(imageSet) : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Blank' }]} />
+          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Blank' }]} />
           {sp.kind === 'blank' ? (
             <RolePick label="Blank colour" colours={baseColours} value={sp.role} onChange={v => updateSpace(i, { role: v ?? 0 })} />
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => updateSpace(i, { image: randomImage(sp.image?.startsWith('s:') ? setOf(sp.image) : imageSet, sp.image) })}>New image</Button>
+                <Button variant="secondary" onClick={() => updateSpace(i, { image: randomImage(sp.image) })}>New image</Button>
                 <Button variant="secondary" asChild>
                   <label className="cursor-pointer">
                     Your photo

@@ -133,7 +133,7 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, 
       <svg viewBox={box} className={className} style={style} shapeRendering="crispEdges" preserveAspectRatio={cover ? 'xMidYMid slice' : 'xMidYMid meet'}>
         {/* Sized to the frame's shape, the svg's own edge crops the spare tiles; a clip path here
             leaves a sliver of page along an edge, so the frame clip is only for other sizes */}
-        {style ? <g>{parts}{spaces}{overlay}</g> : <><defs>{frame}</defs><g clipPath={`url(#${id}f)`}>{parts}{spaces}{overlay}</g></>}
+        {style ? <g>{parts}{overlay}{spaces}</g> : <><defs>{frame}</defs><g clipPath={`url(#${id}f)`}>{parts}{overlay}{spaces}</g></>}
       </svg>
     )
   }
