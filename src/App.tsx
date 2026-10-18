@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Bookmark, Copy, Download, Eye, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Copy, Download, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToolButton } from '@/components/shell/ToolButton'
@@ -34,7 +34,6 @@ const panels = [
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
   ...(SPACES ? [{ id: 'spaces', label: 'Spaces', icon: ImagePlus } as const] : []),
-  { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
   { id: 'export', label: 'Export', icon: Download }, // last, as in the other apps
@@ -255,9 +254,9 @@ export default function App() {
   // Pattern: the block, how many fit, how they repeat, the gaps between, the frame
   const baseColours = pattern.colours.slice(0, spec.palette.count)
   const aspect = String(spec.aspect ?? 1)
-  const patternPanel = (
-    <>
-      <FieldGroup title="Block">
+  // Pattern holds the presets (blocks, then looks); Settings holds how they're laid out
+  const blocksGroup = (
+      <FieldGroup title="Blocks">
         <Tiles label="Block">
           {BLOCKS.map(name => (
             <Tile key={name} label={name} active={b.source === name} onClick={() => pickBlock(name)}>
@@ -266,7 +265,9 @@ export default function App() {
           ))}
         </Tiles>
       </FieldGroup>
-      <FieldGroup>
+  )
+  const layoutGroup = (
+      <FieldGroup title="Layout">
         <Field label="Blocks across">
           <Slider min={1} max={16} step={1} value={[across]} onValueChange={([v]) => setAcross(v)} aria-label="Blocks across" />
         </Field>
@@ -293,7 +294,6 @@ export default function App() {
           <Segmented label="Format" value={FORMATS.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: +v }))} options={FORMATS} />
         </Field>
       </FieldGroup>
-    </>
   )
 
   // Colour: random colours or a set, mixed or not, and how much colour at all.
@@ -492,11 +492,20 @@ export default function App() {
 
   // Settings: how the editor shows things, not part of the pattern
   const settingsPanel = (
-    <FieldGroup>
-      <Field label="Grid lines">
-        <OnOff label="Grid lines" value={lines} onChange={setLines} />
-      </Field>
-    </FieldGroup>
+    <>
+      {layoutGroup}
+      <FieldGroup title="View">
+        <Field label="Grid lines">
+          <OnOff label="Grid lines" value={lines} onChange={setLines} />
+        </Field>
+      </FieldGroup>
+    </>
+  )
+  const patternPanel = (
+    <>
+      {blocksGroup}
+      <FieldGroup title="Looks">{looksPanel}</FieldGroup>
+    </>
   )
 
   const exportPanel = (
@@ -549,7 +558,6 @@ export default function App() {
         {panel === 'pattern' && patternPanel}
         {panel === 'colour' && colourPanel}
         {panel === 'spaces' && spacesPanel}
-        {panel === 'looks' && looksPanel}
         {panel === 'library' && libraryPanel}
         {panel === 'settings' && settingsPanel}
         {panel === 'export' && exportPanel}
