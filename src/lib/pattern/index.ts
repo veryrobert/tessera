@@ -51,6 +51,13 @@ function framed(spec: Spec): Pattern {
     const bw = spec.source === 'generate' ? spec.block.size : library[spec.source][0].length
     const bh = spec.source === 'generate' ? spec.block.rows ?? spec.block.size : library[spec.source].length
     const sash = spec.layout.sashing
+    // A frame that ends on whole blocks shows exactly those blocks; otherwise grow past it and centre
+    const fit = (w - sash) / (bw + sash)
+    if (Number.isInteger(fit) && fit > 0) {
+      const rowsFit = Math.ceil((h - sash) / (bh + sash))
+      const p = buildColour({ ...spec, layout: { ...spec.layout, cols: fit, rows: rowsFit } })
+      return { ...p, view: { x: 0, y: Math.max(0, (p.grid.length - h) / 2), w, h } }
+    }
     s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }
   else if (spec.mode === 'compose') s = { ...spec, compose: { ...spec.compose, cols: W, rows: H } }

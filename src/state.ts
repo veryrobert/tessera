@@ -77,36 +77,43 @@ export function randomPalette(seed: number): PaletteSpec {
     seed, hue: null, preset: undefined, count: 5,
     // Mostly contrasting hues, as in the references; tonal only now and then
     scheme: pick(r, ['complement', 'complement', 'split', 'split', 'triad', 'triad', 'scatter', 'scatter', 'scatter', 'analogous', 'tonal'] as const),
-    ground: pick(r, ['light', 'dark', 'colour', 'colour'] as const),
+    ground: pick(r, ['light', 'light', 'light', 'colour', 'dark'] as const), // mostly a pale ground, as on a quilt
   }
 }
 
 // A new form, same colours
-// Big by default, as in the references: one to three blocks across the frame. Keeps the frame,
-// the colour amount, the cut and the palette.
-const blocksAcross = (r: () => number) => pick(r, [1, 1.5, 2, 2, 2.5, 3])
+// Quilts, after Waybill's swatches and the scrap quilt: a structural block repeated on a grid, with
+// or without sashing and posts, each block in its own random colours or one palette for all.
+export const QUILT: LibraryName[] = [
+  'corner', 'corner wide', 'square in square', 'framed square', 'antique tile', 'courthouse steps',
+  'log cabin', 'nine patch', 'double nine patch', 'capped check', 'checker', 'four patch', 'churn dash', 'plain',
+]
 
-export function shuffle(s: Spec): Spec {
-  const seed = newSeed(), r = rng(seed)
-  const keep = { palette: s.palette, mask: s.mask, tone: s.tone, aspect: s.aspect ?? 1 }
-  const k = r()
-  if (k < 0.12) {
-    return { mode: 'field', seed, ...keep, scale: int(r, 12, 36), field: { kind: pick(r, ['camo', 'patches', 'streaks'] as const), cols: 40, rows: 40, scale: int(r, 3, 10) } }
+export const blockWidth = (s: Extract<Spec, { mode: 'block' }>) => (s.source === 'generate' ? s.block.size : library[s.source][0].length)
+// Frame width for a number of blocks across, so the frame ends on whole blocks
+export const acrossToScale = (s: Extract<Spec, { mode: 'block' }>, n: number) => n * (blockWidth(s) + s.layout.sashing) + s.layout.sashing
+export const scaleToAcross = (s: Extract<Spec, { mode: 'block' }>) =>
+  Math.max(1, Math.round(((s.scale ?? acrossToScale(s, s.layout.cols)) - s.layout.sashing) / (blockWidth(s) + s.layout.sashing)))
+
+export function quilt(seed: number, palette: PaletteSpec, keep: { aspect?: number; tone?: number; mask?: Spec['mask'] } = {}): Spec {
+  const r = rng(seed)
+  const source = pick(r, QUILT)
+  const across = pick(r, [1, 2, 2, 3, 3, 4, 5])
+  const sashing = source === 'plain' || r() < 0.45 ? 1 : 0
+  const s: Extract<Spec, { mode: 'block' }> = {
+    mode: 'block', seed, source, block: randomBlock(seed), palette, ...keep, aspect: keep.aspect ?? 1,
+    layout: {
+      cols: across, rows: across, repeat: across === 1 ? 'grid' : pick(r, ['grid', 'grid', 'mirror', 'twist', 'twist', 'pinwheel']),
+      // A plain block is all ground, so its gaps take a colour (a lattice); otherwise gaps are ground
+      invert: false, sashing, sashRole: source === 'plain' ? pick(r, [1, 2]) : 0,
+      postRole: source === 'plain' ? pick(r, [0, 3]) : sashing && r() < 0.7 ? 2 : null,
+      colourways: 1, cycle: 'random', seed, palettes: pick(r, [1, 1, 4, 8, 12]),
+    },
   }
-  if (k < 0.32) {
-    const style = pick(r, ['bricks', 'strips', 'stripes'] as const)
-    return { mode: 'compose', seed, ...keep, scale: int(r, 8, 16), compose: { style, cols: 16, rows: 16, size: style === 'stripes' ? pick(r, [3, 4]) : pick(r, [1, 2, 2, 3]) } }
-  }
-  if (k < 0.42) {
-    return { mode: 'plaid', seed, ...keep, scale: int(r, 16, 44), plaid: { sett: null, mirror: r() < 0.6, weave: pick(r, ['plain', 'twill', 'over', 'under'] as const), cols: 48, rows: 48 } }
-  }
-  const generate = r() < 0.55
-  const source = generate ? 'generate' : pick(r, LIBRARY)
-  const block = generate ? randomBlock(seed) : s.mode === 'block' ? s.block : randomBlock(seed)
-  const layout = randomLayout(seed + 1)
-  const width = (source === 'generate' ? block.size : library[source][0].length) + layout.sashing
-  return { mode: 'block', seed, ...keep, source, block, layout, scale: width * blocksAcross(r) + layout.sashing }
+  return { ...s, scale: acrossToScale(s, across) }
 }
+
+export const shuffle = (s: Spec): Spec => quilt(newSeed(), s.palette, { aspect: s.aspect, tone: s.tone, mask: s.mask })
 
 // Same form, new colours
 // Recolouring a black and white pattern brings the colour in

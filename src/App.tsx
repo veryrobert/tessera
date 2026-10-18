@@ -16,9 +16,9 @@ import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
 import {
   type ComposeStyle, type Cycle, type FieldKind, type Ground, type LayoutSpec, type Mask, type PaletteSpec, type Scheme, type ShapeMix, type Spec,
-  build, decode, defaultSpec, encode, makePalette, presets, rng,
+  build, decode, encode, makePalette, presets,
 } from '@/lib/pattern'
-import { LIBRARY, PRESETS, REPEATS, SYMMETRIES, blockDefaults, newSeed, randomBlock, randomPalette, recolour, shuffle } from '@/state'
+import { LIBRARY, PRESETS, QUILT, REPEATS, SYMMETRIES, acrossToScale, blockDefaults, newSeed, quilt, randomBlock, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 
@@ -40,27 +40,8 @@ type PlaidMode = Extract<Spec, { mode: 'plaid' }>
 type FieldMode = Extract<Spec, { mode: 'field' }>
 type ComposeMode = Extract<Spec, { mode: 'compose' }>
 
-// Opens in black and white on a plain generated block; the Build sliders add from there
-const startSpec: Spec = {
-  ...(defaultSpec as Extract<Spec, { mode: 'block' }>),
-  source: 'generate', seed: 3, tone: 0, scale: 20, aspect: 1,
-  block: { size: 5, symmetry: 'full', roles: 2, density: 0.4, shapes: { tri: 0.3, quarter: 0.12, half: 0.12, split: 0.18, bars: 0.09 } },
-  layout: { ...defaultSpec.mode === 'block' ? defaultSpec.layout : ({} as LayoutSpec), cols: 4, rows: 4, repeat: 'mirror' },
-  palette: { seed: 3, hue: null, scheme: 'complement', ground: 'light', count: 5, preset: undefined },
-}
-// A fresh random block each time the app opens without a link: black and white, two or three tones,
-// sometimes a rectangle, at a random scale, with colours waiting behind the Colour slider
-function randomStart(): Spec {
-  const seed = newSeed(), r = rng(seed)
-  const blk = randomBlock(seed)
-  const sb = startSpec as BlockMode
-  return {
-    ...sb, seed, tone: 0, scale: blk.size * [1, 1.5, 2, 2, 2.5, 3][Math.floor(r() * 6)], aspect: 1, // one to three blocks across
-    block: { ...blk, roles: 2 + Math.floor(r() * 2), density: 0.3 + r() * 0.3, rows: r() < 0.3 ? 1 + Math.floor(r() * 8) : undefined },
-    layout: { ...sb.layout, repeat: (['mirror', 'mirror', 'twist', 'grid', 'brick', 'half drop'] as const)[Math.floor(r() * 6)] },
-    palette: randomPalette(seed),
-  }
-}
+// A fresh random quilt in random colours each time the app opens without a link
+const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()))
 const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? randomStart()
 const SHAPE_LABELS = { tri: 'Triangles', split: 'Halves', quarter: 'Quarter circles', half: 'Half circles', bars: 'Stripes' } as const
 
@@ -371,51 +352,61 @@ export default function App() {
     </>
   )
 
-  // Build: a few sliders that add complexity. Split, depth and shapes generate a block.
-  // Scale: 0 is fine (160 cells across the frame), 1 is one big cell; even steps feel even (log)
-  const MIN = 1.5, MAX = 160
   const cellsAcross = spec.scale ?? (pattern.view?.w ?? pattern.grid[0].length)
-  const zoom = Math.log(MAX / cellsAcross) / Math.log(MAX / MIN)
-  const setZoom = (z: number) => setSpec(s => ({ ...s, scale: MAX * (MIN / MAX) ** z, aspect: s.aspect ?? pattern.grid.length / pattern.grid[0].length }))
   const formats = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
   const aspect = String(spec.aspect ?? 1)
-  const setDepth = (v: number) => setSpec(s => {
-    const blk = asBlock(s)
-    const count = blk.palette.preset ? blk.palette.count : Math.max(blk.palette.count, v)
-    return { ...blk, source: 'generate', block: { ...blk.block, roles: v }, palette: { ...blk.palette, count } }
+  // Build: pick a block, then how many across, the gap between, posts, and how mixed the colours are
+  const across = b ? scaleToAcross(b) : 3
+  const setAcross = (n: number) => setSpec(s => { const q = asBlock(s); return { ...q, scale: acrossToScale(q, n), aspect: q.aspect ?? 1 } })
+  const setGap = (g: number) => setSpec(s => {
+    const q = asBlock(s), n = scaleToAcross(q)
+    const next = { ...q, layout: { ...q.layout, sashing: g } }
+    return { ...next, scale: acrossToScale(next, n) }
   })
-  const setAmount = (v: number) => setShapes({ tri: v, split: v * 0.6, quarter: v * 0.4, half: v * 0.4, bars: v * 0.3 })
+  const pickBlock = (name: (typeof QUILT)[number]) => setSpec(s => {
+    const q = asBlock(s), n = scaleToAcross(q)
+    const next = { ...q, source: name }
+    return { ...next, scale: acrossToScale(next, n), aspect: q.aspect ?? 1 }
+  })
   const buildPanel = (
-    <FieldGroup>
-      <Field label="Scale">
-        <Slider min={0} max={1} step={0.005} value={[Math.max(0, Math.min(1, zoom))]} onValueChange={([v]) => setZoom(v)} aria-label="Scale" />
-      </Field>
-      <Field label="Format">
-        <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
-      </Field>
-      <Field label="Split across">
-        <Slider min={1} max={10} step={1} value={[b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ size: v, rows: b?.block.rows ?? b?.block.size ?? 4 })} aria-label="Split across" />
-      </Field>
-      <Field label="Split down">
-        <Slider min={1} max={10} step={1} value={[b?.block.rows ?? b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ rows: v })} aria-label="Split down" />
-      </Field>
-      <Field label="Depth">
-        <Slider min={2} max={6} step={1} value={[b?.block.roles ?? 2]} onValueChange={([v]) => setDepth(v)} aria-label="Depth" />
-      </Field>
-      <Field label="Shapes">
-        <Slider min={0} max={1.5} step={0.05} value={[b?.block.shapes.tri ?? 0]} onValueChange={([v]) => setAmount(v)} aria-label="Shapes" />
-      </Field>
-      <Field label="Colour">
-        <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour" />
-      </Field>
-    </FieldGroup>
+    <>
+      <FieldGroup title="Block">
+        <Tiles label="Block">
+          {QUILT.map(name => (
+            <Tile key={name} label={name} active={b?.source === name} onClick={() => pickBlock(name)}>
+              <PatternSvg pattern={build({ ...asBlock(spec), source: name, scale: undefined, mask: undefined, layout: { ...asBlock(spec).layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', palettes: 1 } })} className="size-full" />
+            </Tile>
+          ))}
+        </Tiles>
+      </FieldGroup>
+      <FieldGroup>
+        <Field label="Blocks across">
+          <Slider min={1} max={12} step={1} value={[across]} onValueChange={([v]) => setAcross(v)} aria-label="Blocks across" />
+        </Field>
+        <Field label="Gap">
+          <Slider min={0} max={3} step={1} value={[b?.layout.sashing ?? 0]} onValueChange={([v]) => setGap(v)} aria-label="Gap" />
+        </Field>
+        <Field label="Posts">
+          <OnOff label="Posts" value={b?.layout.postRole != null} onChange={v => setLayout({ postRole: v ? 2 : null })} />
+        </Field>
+        <Field label="Mix">
+          <Slider min={1} max={16} step={1} value={[b?.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix" />
+        </Field>
+        <Field label="Format">
+          <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
+        </Field>
+        <Field label="Colour">
+          <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour" />
+        </Field>
+      </FieldGroup>
+    </>
   )
 
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
       {looks.map(l => (
-        <Tile key={l.name} label={l.name} active={encode({ ...l.spec, tone: spec.tone }) === encode(spec)} onClick={() => setSpec({ ...l.spec, tone: 0 })}>
-          <PatternSvg pattern={build({ ...l.spec, tone: 0 })} className="size-full" />
+        <Tile key={l.name} label={l.name} active={encode(l.spec) === encode(spec)} onClick={() => setSpec(l.spec)}>
+          <PatternSvg pattern={build(l.spec)} className="size-full" />
         </Tile>
       ))}
     </Tiles>
