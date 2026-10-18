@@ -75,13 +75,16 @@ export default function App() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  // The frame is the largest box of the pattern's shape that fits, snapped to whole device pixels,
+  // so it holds still as cell counts change; the cells divide it evenly
   const view = pattern.view ?? { w: pattern.grid[0].length, h: pattern.grid.length }
   const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1
-  const cellPx = Math.max(1, Math.floor(Math.min(room.w / view.w, room.h / view.h) * dpr)) / dpr
-  // Centred by hand on whole device pixels (a grid's centring can land on a half pixel)
   const snap = (v: number) => Math.round(v * dpr) / dpr
+  const fit = Math.min(room.w / view.w, room.h / view.h)
+  const frameW = snap(fit * view.w), frameH = snap(fit * view.h)
+  const cellPx = fit
   const size = room.w
-    ? { width: cellPx * view.w, height: cellPx * view.h, placeSelf: 'start', marginLeft: snap((room.w - cellPx * view.w) / 2), marginTop: snap((room.h - cellPx * view.h) / 2) }
+    ? { width: frameW, height: frameH, placeSelf: 'start', marginLeft: snap((room.w - frameW) / 2), marginTop: snap((room.h - frameH) / 2) }
     : undefined
 
   // Every change goes through here, so it can be undone and lands in the URL
