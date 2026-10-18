@@ -69,7 +69,12 @@ function framed(spec: Spec): Pattern {
     }
     s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }
-  else if (spec.mode === 'compose') s = { ...spec, compose: { ...spec.compose, cols: W, rows: H } }
+  else if (spec.mode === 'compose') {
+    // A composition is drawn to the frame exactly: whole units across and down, nothing cropped
+    const cols = Math.round(w), rows = Math.max(1, Math.round(h))
+    const p = buildColour({ ...spec, compose: { ...spec.compose, cols, rows } })
+    return { ...p, view: { x: 0, y: 0, w: cols, h: rows } }
+  }
   else s = { ...spec, field: { ...spec.field, cols: W, rows: H } }
   const p = buildColour(s)
   const gw = p.grid[0].length, gh = p.grid.length

@@ -56,7 +56,7 @@ const BLOCKS = [...QUILT].sort((a, b) => library[a][0].length - library[b][0].le
 const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()), { aspect: formatTall(START_FORMAT) })
 const fromHash = (): Spec => {
   const s = location.hash.length > 1 ? decode(location.hash) : null
-  return s?.mode === 'block' ? s : randomStart()
+  return s?.mode === 'block' || s?.mode === 'compose' ? s : randomStart()
 }
 
 export default function App() {
@@ -160,7 +160,7 @@ export default function App() {
   const drawingRef = useRef(false)
   cellRef.current = cellPx
   useStepZoom(stage, {
-    value: () => scaleToAcross(asBlock(latest.current)),
+    value: () => (latest.current.mode === 'block' ? scaleToAcross(asBlock(latest.current)) : null),
     set: n => setSpecRaw(s => keepAcross(s, asBlock(s), n)),
     begin: () => { past.current = [...past.current.slice(-60), latest.current] },
     min: 1,
@@ -505,9 +505,27 @@ export default function App() {
       </Field>
     </FieldGroup>
   )
+  // Nest: rectangles inside rectangles, after the colour-field prints; four to start from
+  const NEST_SEEDS = [11, 23, 37, 58, 71, 89, 104, 126]
+  const nestSpec = (seed: number, s: Spec = spec): Spec => ({
+    mode: 'compose', seed, palette: s.palette, tone: s.tone, aspect: s.aspect ?? START_TALL, scale: 12,
+    compose: { style: 'nest', cols: 12, rows: 12, size: 1 },
+  })
+  const nestGroup = (
+    <FieldGroup title="Nest">
+      <Tiles label="Nest">
+        {NEST_SEEDS.map(seed => (
+          <Tile key={seed} label={`Nest ${seed}`} active={spec.mode === 'compose' && spec.seed === seed} onClick={() => setSpec(s => nestSpec(seed, s))}>
+            <PatternSvg pattern={build({ ...nestSpec(seed), aspect: 1 })} className="size-full" cover />
+          </Tile>
+        ))}
+      </Tiles>
+    </FieldGroup>
+  )
   const patternPanel = (
     <>
       {blocksGroup}
+      {nestGroup}
       <FieldGroup title="Looks">{looksPanel}</FieldGroup>
     </>
   )

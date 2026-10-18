@@ -40,4 +40,5 @@ This app was made from `veryrobert/starter`. Keep to its stack and style.
 - `FilePick`: load one file, show its name, clear it.
 - `Field`, `FieldGroup`: labelled rows inside a sheet.
 - `formats.ts`: the shared Format list (`FORMATS`, `formatTall`).
+- `thumbnail.ts`: the index thumbnail, 1600 × 1000 (16:10), the work centred on black. Every app's Export offers it.
 - `Splash`: the load screen. Each app has its own small mark, 3 to 8 stroke paths on a 32×32 grid (`pathLength={1}`), drawn in order with loom's timing, then faded.
