@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Bookmark, Download, Eye, Library, Settings, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Download, Eye, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -38,7 +38,7 @@ const panels = [
   { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'export', label: 'Export', icon: Download },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
 ] as const
 type PanelId = (typeof panels)[number]['id']
 
