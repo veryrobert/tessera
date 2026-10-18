@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Eye, Grid2x2, Grid3x3, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Download, Eye, Library, Grid2x2, Grid3x3, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -19,6 +19,7 @@ import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, blockWidth, newS
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
+import { type Download as DownloadRecord, type Saved, addDownload, deleteDownload, deleteSaved, listDownloads, listSaved, newSaved, putSaved } from '@/library'
 import { type Space, addUpload, credit, loadImage, randomImage } from '@/spaces'
 import type { Cutout } from '@/components/pattern/PatternSvg'
 
@@ -28,12 +29,14 @@ import type { Cutout } from '@/components/pattern/PatternSvg'
 
 // Spaces (photos and type areas in the pattern) are hidden for now; the code stays for later
 const SPACES = false
+const NO_SPACES: Space[] = []
 
 const panels = [
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
   ...(SPACES ? [{ id: 'spaces', label: 'Spaces', icon: ImagePlus } as const] : []),
   { id: 'looks', label: 'Looks', icon: Eye },
+  { id: 'library', label: 'Library', icon: Library },
   { id: 'export', label: 'Export', icon: Download },
 ] as const
 type PanelId = (typeof panels)[number]['id']
@@ -61,6 +64,11 @@ export default function App() {
   const past = useRef<Spec[]>([])
   const [note, setNote] = useState('')
   // The light grid over the pattern, on by default; the choice is remembered on this device
+  // The library, as in loom: saved patterns and past downloads, kept in this browser
+  const [saved, setSaved] = useState<Saved[]>([])
+  const [downloads, setDownloads] = useState<DownloadRecord[]>([])
+  const [libTab, setLibTab] = useState<'saved' | 'downloads'>('saved')
+  useEffect(() => { listSaved().then(setSaved); listDownloads().then(setDownloads) }, [])
   const [lines, setLines] = useState(() => { try { return localStorage.getItem('tessera:lines') !== 'off' } catch { return true } })
   useEffect(() => { try { localStorage.setItem('tessera:lines', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
   const stage = useRef<HTMLElement>(null)
@@ -189,7 +197,9 @@ export default function App() {
     clone.append(clip, g)
     return clone
   }
-  const save = (blob: Blob, name: string) => {
+  // Every download is also kept in the library, to download again (not when downloading from there)
+  const save = (blob: Blob, name: string, keep = true) => {
+    if (keep) addDownload(name, blob, spec).then(x => setDownloads(all => [x, ...all]))
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = name
@@ -332,7 +342,7 @@ export default function App() {
   )
 
   // ---------- Spaces: parts of the frame given to a photo or to type ----------
-  const spaces = SPACES ? spec.spaces ?? [] : []
+  const spaces = (SPACES && spec.spaces) || NO_SPACES
   const setSpaces = (f: (all: Space[]) => Space[]) => setSpec(s => ({ ...s, spaces: f(s.spaces ?? []) }))
   const updateSpace = (i: number, p: Partial<Space>) => setSpaces(all => all.map((sp, j) => (j === i ? { ...sp, ...p } : sp)))
   // Type sits on the palette's lightest colour to start, as on the Waybill posters
@@ -412,6 +422,61 @@ export default function App() {
     </>
   )
 
+  // Save: the whole pattern into the library, named after its block, renamed there
+  const savePattern = () => {
+    const name = `${b.source === 'generate' ? 'Pattern' : b.source[0].toUpperCase() + b.source.slice(1)} ${saved.length + 1}`
+    const x = newSaved(name, spec)
+    setSaved(all => [x, ...all])
+    putSaved(x)
+    setNote('Saved to Library')
+  }
+  const renameSaved = (x: Saved, name: string) => { const y = { ...x, name }; setSaved(all => all.map(z => (z.id === x.id ? y : z))); putSaved(y) }
+  const removeSaved = (x: Saved) => { setSaved(all => all.filter(z => z.id !== x.id)); deleteSaved(x.id) }
+  const removeDownload = (x: DownloadRecord) => { setDownloads(all => all.filter(z => z.id !== x.id)); deleteDownload(x.id) }
+
+  const libraryPanel = (
+    <>
+      <Segmented label="Library" value={libTab} onChange={setLibTab} options={[{ value: 'saved', label: 'Saved' }, { value: 'downloads', label: 'Downloads' }]} />
+      {libTab === 'saved' && (saved.length ? (
+        <Tiles label="Saved" cols={2}>
+          {saved.map(x => (
+            <div key={x.id} className="flex flex-col gap-1.5">
+              <div className="relative">
+                <Tile label={x.name} active={encode(x.spec) === encode(spec)} onClick={() => setSpec(x.spec)}>
+                  <PatternSvg pattern={build(x.spec)} className="size-full" cover />
+                </Tile>
+                <button type="button" aria-label={`Delete ${x.name}`} title="Delete" onClick={() => removeSaved(x)}
+                  className="panel absolute right-1.5 top-1.5 grid size-7 place-items-center rounded-full text-foreground">
+                  <Trash2 className="size-3.5" strokeWidth={1.5} />
+                </button>
+              </div>
+              <input aria-label="Name" defaultValue={x.name} onBlur={e => e.target.value.trim() && e.target.value !== x.name && renameSaved(x, e.target.value.trim())}
+                onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                className="w-full truncate rounded bg-transparent text-xs text-foreground outline-none focus:bg-muted focus:px-1" />
+            </div>
+          ))}
+        </Tiles>
+      ) : <p className="text-xs text-muted-foreground">Nothing saved yet</p>)}
+      {libTab === 'downloads' && (downloads.length ? (
+        <div className="flex flex-col gap-2">
+          {downloads.map(x => (
+            <div key={x.id} className="flex items-center gap-3">
+              <div className="size-10 shrink-0 overflow-hidden rounded-md border border-border">
+                <PatternSvg pattern={build(x.spec)} className="size-full" cover />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs">{x.filename}</p>
+                <p className="text-xs text-muted-foreground">{x.mime === 'image/png' ? 'PNG' : 'SVG'} · {x.size > 1e6 ? `${(x.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(x.size / 1e3))} KB`} · {new Date(x.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>
+              </div>
+              <ToolButton icon={Download} label="Download again" side="top" className="size-8" onClick={() => save(x.blob, x.filename, false)} />
+              <ToolButton icon={Trash2} label="Delete" side="top" className="size-8" onClick={() => removeDownload(x)} />
+            </div>
+          ))}
+        </div>
+      ) : <p className="text-xs text-muted-foreground">Nothing downloaded yet</p>)}
+    </>
+  )
+
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
       {GRID_LOOKS.map(l => (
@@ -474,6 +539,7 @@ export default function App() {
         {panel === 'colour' && colourPanel}
         {panel === 'spaces' && spacesPanel}
         {panel === 'looks' && looksPanel}
+        {panel === 'library' && libraryPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
 
@@ -483,6 +549,7 @@ export default function App() {
           <ToolButton icon={Shuffle} label="Shuffle" side="top" onClick={() => setSpec(shuffle)} />
           <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(s => coloured(recolour(s)))} />
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
+          <ToolButton icon={Bookmark} label="Save" side="top" onClick={savePattern} />
           <ToolbarSeparator />
           <ToolButton icon={Grid3x3} label={lines ? 'Hide grid' : 'Show grid'} side="top" active={lines} onClick={() => setLines(v => !v)} />
           <ToolButton icon={Download} label="Download PNG" side="top" onClick={exportPng} />

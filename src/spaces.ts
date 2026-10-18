@@ -5,6 +5,7 @@
 // A space: x, y, w, h are fractions of the frame; role is a blank's colour (one of the palette's);
 // image is 's:<unsplash photo>' for a studio portrait or 'u:<id>' for a photo you added
 import type { Space } from '@/lib/pattern'
+import { openDb } from '@/library'
 export type { Space }
 
 // Everyday people, warm and candid, mid-shot, in colour, as in the Waybill posts; from Unsplash
@@ -59,14 +60,7 @@ export function loadImage(image: string): Promise<string> {
 }
 
 // Photos you add stay in this browser (IndexedDB); a shared link shows them as empty spaces elsewhere
-function db(): Promise<IDBDatabase> {
-  return new Promise((ok, fail) => {
-    const req = indexedDB.open('tessera', 1)
-    req.onupgradeneeded = () => req.result.createObjectStore('photos')
-    req.onsuccess = () => ok(req.result)
-    req.onerror = () => fail(req.error)
-  })
-}
+const db = openDb // the app's one database (library.ts), which keeps photos alongside saved patterns
 export async function addUpload(file: Blob): Promise<string> {
   const id = Math.random().toString(36).slice(2, 10)
   try {
