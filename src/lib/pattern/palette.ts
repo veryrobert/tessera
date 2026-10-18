@@ -51,7 +51,7 @@ const offsets: Record<Exclude<Scheme, 'scatter'>, number[]> = {
 type Slot = { L: [number, number]; C: [number, number]; family: number }
 const slots: Slot[] = [
   { L: [0.95, 0.98], C: [0.005, 0.03], family: 0 }, // ground
-  { L: [0.55, 0.68], C: [0.15, 0.24], family: 0 }, // figure
+  { L: [0.55, 0.68], C: [0.17, 0.26], family: 0 }, // figure
   { L: [0.24, 0.34], C: [0.06, 0.12], family: 0 }, // dark
   { L: [0.62, 0.78], C: [0.14, 0.22], family: 1 }, // accent
   { L: [0.84, 0.9], C: [0.06, 0.1], family: 0 }, // tint
@@ -73,9 +73,11 @@ export function makePalette(spec: PaletteSpec): string[] {
   return slots.slice(0, spec.count).map((s, i) => {
     let { L, C } = s
     if (i === 0 && spec.ground === 'dark') { L = [0.12, 0.18]; C = [0.005, 0.03] }
-    if (i === 0 && spec.ground === 'colour') { L = [0.6, 0.72]; C = [0.14, 0.2] }
+    if (i === 0 && spec.ground === 'colour') { L = [0.72, 0.86]; C = [0.12, 0.2] } // lighter than the figure, so they part
     if (i === 2 && spec.ground === 'dark') { L = [0.9, 0.96]; C = [0.01, 0.04] } // dark role becomes the light one
-    const family = families[s.family % families.length] ?? 0
+    // A coloured ground takes the second hue family, so even two colours contrast
+    const fam = i === 0 && spec.ground === 'colour' ? 1 : s.family
+    const family = families[fam % families.length] ?? 0
     const hue = (base + family + (r() - 0.5) * 14 + 360) % 360
     return oklch(lerp(r, L), lerp(r, C), hue)
   })

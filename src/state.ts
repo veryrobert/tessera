@@ -62,11 +62,14 @@ export function randomLayout(seed: number): LayoutSpec {
 
 export function randomPalette(seed: number): PaletteSpec {
   const r = rng(seed)
-  if (r() < 0.35) return { ...defaultSpec.palette, seed, preset: pick(r, PRESETS) }
+  // Only sets whose ground and figure differ, or a two-colour pattern comes out flat
+  const contrasting = PRESETS.filter(p => presets[p][0] !== presets[p][1])
+  if (r() < 0.35) { const preset = pick(r, contrasting); return { ...defaultSpec.palette, seed, preset, count: presets[preset].length } }
   return {
     seed, hue: null, preset: undefined, count: 5,
-    scheme: pick(r, ['tonal', 'tonal', 'complement', 'split', 'triad', 'analogous', 'scatter'] as const),
-    ground: pick(r, ['light', 'light', 'dark', 'colour'] as const),
+    // Mostly contrasting hues, as in the references; tonal only now and then
+    scheme: pick(r, ['complement', 'complement', 'split', 'split', 'triad', 'triad', 'scatter', 'scatter', 'scatter', 'analogous', 'tonal'] as const),
+    ground: pick(r, ['light', 'dark', 'colour', 'colour'] as const),
   }
 }
 
