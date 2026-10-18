@@ -105,7 +105,8 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className, lines }
   // The grid runs past the frame when it's scaled, and an SVG paints outside its viewBox
   // wherever the element is a different shape, so clip to the frame
   const overlay = lines && (
-    <g data-overlay stroke="rgb(128 128 128 / 0.45)" strokeWidth={1} vectorEffect="non-scaling-stroke" fill="none">
+    // White lines with a difference blend: they read as a light grid on dark colours and a dark one on light
+    <g data-overlay stroke="rgb(255 255 255 / 0.5)" strokeWidth={1} vectorEffect="non-scaling-stroke" fill="none" style={{ mixBlendMode: 'difference' }}>
       <path vectorEffect="non-scaling-stroke" d={[
         ...Array.from({ length: Math.floor(v.w) + 2 }, (_, i) => `M${Math.ceil(v.x) + i},${v.y}v${v.h}`),
         ...Array.from({ length: Math.floor(v.h) + 2 }, (_, i) => `M${v.x},${Math.ceil(v.y) + i}h${v.w}`),
