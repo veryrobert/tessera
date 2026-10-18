@@ -74,24 +74,26 @@ export function randomPalette(seed: number): PaletteSpec {
 }
 
 // A new form, same colours
+// Big by default, as in the references: one to three blocks across the frame. Keeps the frame,
+// the colour amount, the cut and the palette.
+const blocksAcross = (r: () => number) => pick(r, [1, 1.5, 2, 2, 2.5, 3])
+
 export function shuffle(s: Spec): Spec {
   const seed = newSeed(), r = rng(seed)
+  const keep = { palette: s.palette, mask: s.mask, tone: s.tone, aspect: s.aspect ?? 1 }
   const k = r()
   if (k < 0.12) {
-    return { mode: 'field', seed, palette: s.palette, field: { kind: pick(r, ['camo', 'patches', 'streaks'] as const), cols: int(r, 8, 48), rows: int(r, 10, 60), scale: int(r, 3, 14) } }
+    return { mode: 'field', seed, ...keep, scale: int(r, 12, 36), field: { kind: pick(r, ['camo', 'patches', 'streaks'] as const), cols: 40, rows: 40, scale: int(r, 3, 10) } }
   }
   if (k < 0.27) {
-    return { mode: 'plaid', seed, palette: s.palette, plaid: { sett: null, mirror: r() < 0.6, weave: pick(r, ['plain', 'twill', 'over', 'under'] as const), cols: 48, rows: 48 } }
+    return { mode: 'plaid', seed, ...keep, scale: int(r, 16, 44), plaid: { sett: null, mirror: r() < 0.6, weave: pick(r, ['plain', 'twill', 'over', 'under'] as const), cols: 48, rows: 48 } }
   }
   const generate = r() < 0.55
-  return {
-    mode: 'block', seed,
-    source: generate ? 'generate' : pick(r, LIBRARY),
-    block: generate ? randomBlock(seed) : s.mode === 'block' ? s.block : randomBlock(seed),
-    layout: randomLayout(seed + 1),
-    palette: s.palette,
-    mask: s.mask,
-  }
+  const source = generate ? 'generate' : pick(r, LIBRARY)
+  const block = generate ? randomBlock(seed) : s.mode === 'block' ? s.block : randomBlock(seed)
+  const layout = randomLayout(seed + 1)
+  const width = (source === 'generate' ? block.size : library[source][0].length) + layout.sashing
+  return { mode: 'block', seed, ...keep, source, block, layout, scale: width * blocksAcross(r) + layout.sashing }
 }
 
 // Same form, new colours

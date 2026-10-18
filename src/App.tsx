@@ -54,7 +54,7 @@ function randomStart(): Spec {
   const blk = randomBlock(seed)
   const sb = startSpec as BlockMode
   return {
-    ...sb, seed, tone: 0, scale: 8 + Math.round(r() * 28), aspect: 1,
+    ...sb, seed, tone: 0, scale: blk.size * [1, 1.5, 2, 2, 2.5, 3][Math.floor(r() * 6)], aspect: 1, // one to three blocks across
     block: { ...blk, roles: 2 + Math.floor(r() * 2), density: 0.3 + r() * 0.3, rows: r() < 0.3 ? 1 + Math.floor(r() * 8) : undefined },
     layout: { ...sb.layout, repeat: (['mirror', 'mirror', 'twist', 'grid', 'brick', 'half drop'] as const)[Math.floor(r() * 6)] },
     palette: randomPalette(seed),
@@ -358,8 +358,8 @@ export default function App() {
   )
 
   // Build: a few sliders that add complexity. Split, depth and shapes generate a block.
-  // Scale: 0 is fine (160 cells across the frame), 1 is one big cell; even steps feel even (log)
-  const MIN = 1.5, MAX = 160
+  // Scale: 0 is fine (64 cells across the frame), 1 is one big cell; even steps feel even (log)
+  const MIN = 1.5, MAX = 64
   const cellsAcross = spec.scale ?? (pattern.view?.w ?? pattern.grid[0].length)
   const zoom = Math.log(MAX / cellsAcross) / Math.log(MAX / MIN)
   const setZoom = (z: number) => setSpec(s => ({ ...s, scale: MAX * (MIN / MAX) ** z, aspect: s.aspect ?? pattern.grid.length / pattern.grid[0].length }))
