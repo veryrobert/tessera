@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
 
-// kaleidoscope: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
+// tessera: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
 // Looks has starting points, Export saves. Pinch or drag to change how many blocks fit.
 // The whole pattern lives in the URL, so any look can be shared or bookmarked.
 
@@ -53,8 +53,8 @@ export default function App() {
   const past = useRef<Spec[]>([])
   const [note, setNote] = useState('')
   // The light grid over the pattern, on by default; the choice is remembered on this device
-  const [lines, setLines] = useState(() => { try { return localStorage.getItem('kaleidoscope:lines') !== 'off' } catch { return true } })
-  useEffect(() => { try { localStorage.setItem('kaleidoscope:lines', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
+  const [lines, setLines] = useState(() => { try { return localStorage.getItem('tessera:lines') !== 'off' } catch { return true } })
+  useEffect(() => { try { localStorage.setItem('tessera:lines', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
   const stage = useRef<HTMLElement>(null)
   const current = panels.find(p => p.id === panel)
 
@@ -165,7 +165,7 @@ export default function App() {
   }
   const exportSvg = () => {
     const el = svgEl()
-    if (el) save(new Blob([svgString(el)], { type: 'image/svg+xml' }), 'kaleidoscope.svg')
+    if (el) save(new Blob([svgString(el)], { type: 'image/svg+xml' }), 'tessera.svg')
   }
   const exportPng = async (long: number) => {
     const el = svgEl()
@@ -183,7 +183,7 @@ export default function App() {
     c.height = h
     c.getContext('2d')!.drawImage(img, 0, 0, w, h)
     URL.revokeObjectURL(img.src)
-    c.toBlob(blob => blob && save(blob, 'kaleidoscope.png'), 'image/png')
+    c.toBlob(blob => blob && save(blob, 'tessera.png'), 'image/png')
   }
   const copyLink = async () => {
     try {

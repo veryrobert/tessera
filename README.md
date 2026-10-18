@@ -1,4 +1,4 @@
-# kaleidoscope
+# tessera
 
 Quilt blocks on a grid, in random colours, after Waybill's swatches and the scrap quilt. Shuffle the form, recolour, pinch or drag to change how many blocks fit, and export PNG or SVG. The whole pattern lives in the link, so any look can be shared.
 
