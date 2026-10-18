@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Eye, Grid2x2, Grid3x3, ImagePlus, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, Eye, Grid2x2, Grid3x3, ImagePlus, Palette, Shuffle, Trash2, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -393,7 +393,12 @@ export default function App() {
       </FieldGroup>
       {spaces.map((sp, i) => (
         <FieldGroup key={i} title={`Space ${i + 1}`}>
-          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }]} />
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }]} />
+            </div>
+            <ToolButton icon={Trash2} label="Remove" side="left" className="size-8" onClick={() => setSpaces(all => all.filter((_, j) => j !== i))} />
+          </div>
           {sp.kind === 'blank' ? (
             <RolePick label="Blank colour" colours={baseColours} value={sp.role} onChange={v => updateSpace(i, { role: v ?? 0 })} />
           ) : (
@@ -414,7 +419,6 @@ export default function App() {
               {credit(sp.image) && <p className="text-xs text-muted-foreground">{credit(sp.image)}</p>}
             </>
           )}
-          <Button variant="ghost" className="justify-start px-0 text-muted-foreground" onClick={() => setSpaces(all => all.filter((_, j) => j !== i))}>Remove</Button>
         </FieldGroup>
       ))}
     </>
