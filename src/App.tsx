@@ -158,6 +158,24 @@ export default function App() {
     if (!el) return null
     const clone = el.cloneNode(true) as SVGSVGElement
     clone.querySelectorAll('[data-overlay]').forEach(n => n.remove())
+    // A real size (2048px on the long side) instead of the on-screen layout, or apps read the
+    // viewBox's cell units as pixels and open it tiny
+    const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length, k = 2048 / Math.max(W, H)
+    clone.removeAttribute('style')
+    clone.removeAttribute('class')
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    clone.setAttribute('width', String(Math.round(W * k)))
+    clone.setAttribute('height', String(Math.round(H * k)))
+    // Clip to the frame, so the spare tiles kept for sliding don't come along into Figma and the like
+    const [vx, vy, vw, vh] = (clone.getAttribute('viewBox') ?? '').split(' ')
+    const ns = 'http://www.w3.org/2000/svg'
+    const clip = document.createElementNS(ns, 'clipPath'), rect = document.createElementNS(ns, 'rect'), g = document.createElementNS(ns, 'g')
+    clip.id = 'frame'
+    Object.entries({ x: vx, y: vy, width: vw, height: vh }).forEach(([a, v]) => rect.setAttribute(a, v))
+    clip.append(rect)
+    g.setAttribute('clip-path', 'url(#frame)')
+    g.append(...clone.childNodes)
+    clone.append(clip, g)
     return clone
   }
   const save = (blob: Blob, name: string) => {
@@ -170,6 +188,17 @@ export default function App() {
   const exportSvg = () => {
     const el = svgEl()
     if (el) save(new Blob([svgString(el)], { type: 'image/svg+xml' }), 'tessera.svg')
+  }
+  // As text, which Figma and code editors take as a paste
+  const copySvg = async () => {
+    const el = svgEl()
+    if (!el) return
+    try {
+      await navigator.clipboard.writeText(svgString(el))
+      setNote('SVG copied')
+    } catch {
+      setNote('Couldn’t copy the SVG')
+    }
   }
   const exportPng = async (long: number) => {
     const el = svgEl()
@@ -306,6 +335,7 @@ export default function App() {
       <Button variant="secondary" onClick={() => exportPng(2048)}>PNG 2K</Button>
       <Button variant="secondary" onClick={() => exportPng(4096)}>PNG 4K</Button>
       <Button variant="secondary" onClick={exportSvg}>SVG</Button>
+      <Button variant="secondary" onClick={copySvg}>Copy SVG</Button>
       <Button variant="secondary" onClick={copyLink}>Copy link</Button>
     </FieldGroup>
   )
