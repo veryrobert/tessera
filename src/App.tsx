@@ -36,6 +36,8 @@ type BlockMode = Extract<Spec, { mode: 'block' }>
 
 const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
 const GRID_LOOKS = looks.filter(l => l.spec.mode === 'block')
+// A look opens in a square frame of its own blocks across, so it fills the square, zooms and slides
+const framedLook = (spec: Spec): Spec => { const q = spec as BlockMode; return { ...q, scale: acrossToScale(q, q.layout.cols), aspect: 1, offset: undefined } }
 // Block tiles run small to big: by cells across, then down
 const BLOCKS = [...QUILT].sort((a, b) => library[a][0].length - library[b][0].length || library[a].length - library[b].length)
 
@@ -273,9 +275,8 @@ export default function App() {
     <Tiles label="Looks" cols={3}>
       {GRID_LOOKS.map(l => (
         <Tile key={l.name} label={l.name} active={b.source === (l.spec as BlockMode).source && b.layout.repeat === (l.spec as BlockMode).layout.repeat && JSON.stringify(l.spec.palette) === JSON.stringify(spec.palette)}
-          // A look takes a frame of its own blocks across, so it zooms and slides like the rest
-          onClick={() => setSpec(() => { const q = l.spec as BlockMode; return { ...q, scale: acrossToScale(q, q.layout.cols), aspect: 1 } })}>
-          <PatternSvg pattern={build(l.spec)} className="size-full" />
+          onClick={() => setSpec(framedLook(l.spec))}>
+          <PatternSvg pattern={build(framedLook(l.spec))} className="size-full" cover />
         </Tile>
       ))}
     </Tiles>
