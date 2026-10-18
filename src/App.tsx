@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, SlidersHorizontal, Grid2x2, LayoutGrid, LayoutTemplate, Link, Palette, Shuffle, Sparkles, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, SlidersHorizontal, Grid2x2, LayoutTemplate, Link, Palette, Shuffle, Sparkles, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -30,7 +30,6 @@ const panels = [
   { id: 'build', label: 'Build', icon: SlidersHorizontal },
   { id: 'looks', label: 'Looks', icon: LayoutTemplate },
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
-  { id: 'layout', label: 'Layout', icon: LayoutGrid },
   { id: 'colour', label: 'Colour', icon: Palette },
   { id: 'export', label: 'Export', icon: Download },
 ] as const
@@ -257,48 +256,6 @@ export default function App() {
     </>
   )
 
-  const layoutPanel = b ? (
-    <>
-      <FieldGroup>
-        <Field label="Repeat">
-          <Choices label="Repeat" cols={4} value={b.layout.repeat} onChange={v => setLayout({ repeat: v })} options={REPEATS} />
-        </Field>
-        <Field label="Across">
-          <Slider min={1} max={12} step={1} value={[b.layout.cols]} onValueChange={([v]) => setLayout({ cols: v })} aria-label="Across" />
-        </Field>
-        <Field label="Down">
-          <Slider min={1} max={12} step={1} value={[b.layout.rows]} onValueChange={([v]) => setLayout({ rows: v })} aria-label="Down" />
-        </Field>
-        <Field label="Swap alternate">
-          <OnOff label="Swap alternate" value={b.layout.invert} onChange={v => setLayout({ invert: v })} />
-        </Field>
-      </FieldGroup>
-      <FieldGroup title="Sashing">
-        <Field label="Width">
-          <Slider min={0} max={3} step={1} value={[b.layout.sashing]} onValueChange={([v]) => setLayout({ sashing: v })} aria-label="Sashing" />
-        </Field>
-        <Field label="Strip">
-          <RolePick label="Strip" colours={pattern.colours} value={b.layout.sashRole} onChange={v => setLayout({ sashRole: v ?? 0 })} />
-        </Field>
-        <Field label="Posts">
-          <RolePick label="Posts" colours={pattern.colours} value={b.layout.postRole} onChange={v => setLayout({ postRole: v })} none />
-        </Field>
-      </FieldGroup>
-      <FieldGroup title="Colourways">
-        <Field label="Count">
-          <Slider min={1} max={4} step={1} value={[b.layout.colourways]} onValueChange={([v]) => setLayout({ colourways: v })} aria-label="Colourways" />
-        </Field>
-        {b.layout.colourways > 1 && (
-          <Field label="Order">
-            <Segmented<Cycle> label="Order" value={b.layout.cycle} onChange={v => setLayout({ cycle: v })} options={[{ value: 'alternate', label: 'Alternate' }, { value: 'diagonal', label: 'Diagonal' }, { value: 'random', label: 'Random' }]} />
-          </Field>
-        )}
-      </FieldGroup>
-    </>
-  ) : (
-    <p className="text-xs text-muted-foreground">Only blocks repeat</p>
-  )
-
   const colourPanel = (
     <>
       <FieldGroup>
@@ -339,10 +296,20 @@ export default function App() {
         </FieldGroup>
       )}
       {b && (
-        <FieldGroup title="Mix">
-          <Field label="Palettes">
-            <Slider min={1} max={8} step={1} value={[b.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Palettes" />
+        <FieldGroup title="Across blocks">
+          <Field label="Mix">
+            <Slider min={1} max={16} step={1} value={[b.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix palettes" />
           </Field>
+          {(b.layout.palettes ?? 1) === 1 && (
+            <Field label="Colourways">
+              <Slider min={1} max={4} step={1} value={[b.layout.colourways]} onValueChange={([v]) => setLayout({ colourways: v })} aria-label="Colourways" />
+            </Field>
+          )}
+          {(b.layout.palettes ?? 1) === 1 && b.layout.colourways > 1 && (
+            <Field label="Order">
+              <Segmented<Cycle> label="Order" value={b.layout.cycle} onChange={v => setLayout({ cycle: v })} options={[{ value: 'alternate', label: 'Alternate' }, { value: 'diagonal', label: 'Diagonal' }, { value: 'random', label: 'Random' }]} />
+            </Field>
+          )}
         </FieldGroup>
       )}
       <FieldGroup title="In use">
@@ -394,17 +361,31 @@ export default function App() {
       </FieldGroup>
       <FieldGroup>
         <Field label="Blocks across">
-          <Slider min={1} max={12} step={1} value={[across]} onValueChange={([v]) => setAcross(v)} aria-label="Blocks across" />
+          <Slider min={1} max={16} step={1} value={[across]} onValueChange={([v]) => setAcross(v)} aria-label="Blocks across" />
         </Field>
-        <Field label="Gap">
-          <Slider min={0} max={3} step={1} value={[b?.layout.sashing ?? 0]} onValueChange={([v]) => setGap(v)} aria-label="Gap" />
-        </Field>
-        <Field label="Posts">
-          <OnOff label="Posts" value={b?.layout.postRole != null} onChange={v => setLayout({ postRole: v ? 2 : null })} />
-        </Field>
-        <Field label="Mix">
-          <Slider min={1} max={16} step={1} value={[b?.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix" />
-        </Field>
+        {b && (
+          <>
+            <Field label="Repeat">
+              <Choices label="Repeat" cols={4} value={b.layout.repeat} onChange={v => setLayout({ repeat: v })} options={REPEATS} />
+            </Field>
+            <Field label="Swap alternate">
+              <OnOff label="Swap alternate" value={b.layout.invert} onChange={v => setLayout({ invert: v })} />
+            </Field>
+            <Field label="Gap">
+              <Slider min={0} max={3} step={1} value={[b.layout.sashing]} onValueChange={([v]) => setGap(v)} aria-label="Gap" />
+            </Field>
+            {b.layout.sashing > 0 && (
+              <>
+                <Field label="Gap colour">
+                  <RolePick label="Gap colour" colours={pattern.colours.slice(0, spec.palette.count)} value={b.layout.sashRole} onChange={v => setLayout({ sashRole: v ?? 0 })} />
+                </Field>
+                <Field label="Posts">
+                  <RolePick label="Posts" colours={pattern.colours.slice(0, spec.palette.count)} value={b.layout.postRole} onChange={v => setLayout({ postRole: v })} none />
+                </Field>
+              </>
+            )}
+          </>
+        )}
         <Field label="Format">
           <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
         </Field>
@@ -458,7 +439,6 @@ export default function App() {
         {panel === 'build' && buildPanel}
         {panel === 'looks' && looksPanel}
         {panel === 'pattern' && patternPanel}
-        {panel === 'layout' && layoutPanel}
         {panel === 'colour' && colourPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
