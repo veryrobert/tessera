@@ -11,6 +11,8 @@ import { PanelRail } from '@/components/shell/PanelRail'
 import { PanelSheet } from '@/components/shell/PanelSheet'
 import { ActionDock } from '@/components/shell/ActionDock'
 import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/layout'
+import { FORMATS, START_FORMAT, formatTall, type FormatName } from '@/components/shell/formats'
+const START_TALL = formatTall(START_FORMAT)
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
 import { type LayoutSpec, type PaletteSpec, type Spec, build, decode, encode, library, makePalette, presets } from '@/lib/pattern'
@@ -43,8 +45,6 @@ type PanelId = (typeof panels)[number]['id']
 
 type BlockMode = Extract<Spec, { mode: 'block' }>
 
-// The shared set (as in stacker): 1:1, 4:5, 9:16, 16:9, A4; values are height over width
-const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }, { value: '1.4142', label: 'A4' }]
 const GRID_LOOKS = looks.filter(l => l.spec.mode === 'block')
 // A look opens in a square frame of its own blocks across, so it fills the square, zooms and slides
 const framedLook = (spec: Spec): Spec => { const q = spec as BlockMode; return { ...q, scale: acrossToScale(q, q.layout.cols), aspect: 1, offset: undefined } }
@@ -52,7 +52,7 @@ const framedLook = (spec: Spec): Spec => { const q = spec as BlockMode; return {
 const BLOCKS = [...QUILT].sort((a, b) => library[a][0].length - library[b][0].length || library[a].length - library[b].length)
 
 // A fresh random quilt in random colours each time the app opens without a link
-const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()))
+const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()), { aspect: formatTall(START_FORMAT) })
 const fromHash = (): Spec => {
   const s = location.hash.length > 1 ? decode(location.hash) : null
   return s?.mode === 'block' ? s : randomStart()
@@ -143,7 +143,7 @@ export default function App() {
   const b = asBlock(spec)
   const across = scaleToAcross(b)
   // Changes that alter a block's footprint keep the same number of blocks across
-  const keepAcross = (s: Spec, next: BlockMode, n = scaleToAcross(asBlock(s))): Spec => ({ ...next, scale: acrossToScale(next, n), aspect: next.aspect ?? 1 })
+  const keepAcross = (s: Spec, next: BlockMode, n = scaleToAcross(asBlock(s))): Spec => ({ ...next, scale: acrossToScale(next, n), aspect: next.aspect ?? START_TALL })
   const setAcross = (n: number) => setSpec(s => keepAcross(s, asBlock(s), n))
   const setLayout = (p: Partial<LayoutSpec>) => setSpec(s => { const q = asBlock(s); return { ...q, layout: { ...q.layout, ...p } } })
   const setGap = (g: number) => setSpec(s => { const q = asBlock(s); return keepAcross(s, { ...q, layout: { ...q.layout, sashing: g } }) })
@@ -255,7 +255,7 @@ export default function App() {
   // ---------- Panels ----------
   // Pattern: the block, how many fit, how they repeat, the gaps between, the frame
   const baseColours = pattern.colours.slice(0, spec.palette.count)
-  const aspect = String(spec.aspect ?? 1)
+  const aspect = FORMATS.find(f => Math.abs(f.tall - (spec.aspect ?? START_TALL)) < 0.01)?.name ?? START_FORMAT
   // Pattern holds the presets (blocks, then looks); Settings holds how they're laid out
   const blocksGroup = (
       <FieldGroup title="Blocks">
@@ -482,7 +482,7 @@ export default function App() {
     <Tiles label="Looks" cols={3}>
       {GRID_LOOKS.map(l => (
         <Tile key={l.name} label={l.name} active={b.source === (l.spec as BlockMode).source && b.layout.repeat === (l.spec as BlockMode).layout.repeat && JSON.stringify(l.spec.palette) === JSON.stringify(spec.palette)}
-          onClick={() => setSpec(s => ({ ...framedLook(l.spec), spaces: s.spaces }))}>
+          onClick={() => setSpec(s => ({ ...framedLook(l.spec), aspect: s.aspect ?? START_TALL, spaces: s.spaces }))}>
           <PatternSvg pattern={build(framedLook(l.spec))} className="size-full" cover />
         </Tile>
       ))}
@@ -495,7 +495,7 @@ export default function App() {
   const canvasPanel = (
     <FieldGroup>
         <Field label="Format">
-          <Segmented label="Format" value={FORMATS.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: +v }))} options={FORMATS} />
+          <Segmented<FormatName> label="Format" value={aspect} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: formatTall(v) }))} options={FORMATS.map(f => ({ value: f.name, label: f.name }))} />
         </Field>
       <Field label="Grid lines">
         <OnOff label="Grid lines" value={lines} onChange={setLines} />
