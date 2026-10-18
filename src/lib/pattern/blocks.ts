@@ -116,7 +116,7 @@ function randomShape(r: Rng, mix: ShapeMix): Shape {
     case 'quarter': return { kind, at: corner() }
     case 'half': return { kind, at: side() }
     case 'split': return { kind, at: side() }
-    case 'bars': return { kind, dir: pick(r, ['h', 'v'] as const), count: pick(r, [2, 3, 4]) }
+    case 'bars': return { kind, dir: pick(r, ['h', 'v'] as const), count: pick(r, [2, 3]) }
   }
 }
 

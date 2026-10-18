@@ -31,15 +31,23 @@ export const SYMMETRIES: { value: Symmetry; label: string }[] = [
   { value: 'none', label: 'None' },
 ]
 
+// One idea per block, as in the references: plain squares, or triangles and halves, or curves,
+// or stripes. Never all at once, and two to four colours.
 export function randomBlock(seed: number): BlockSpec {
   const r = rng(seed)
-  const some = () => (r() < 0.5 ? 0 : Math.round(r() * 10) / 10)
+  const amount = 0.5 + r() * 0.7
+  const none = { tri: 0, quarter: 0, half: 0, split: 0, bars: 0 }
+  const style = r()
+  const shapes = style < 0.35 ? none
+    : style < 0.65 ? { ...none, tri: amount, split: amount * 0.5 }
+    : style < 0.85 ? { ...none, quarter: amount * 0.7, half: amount * 0.7 }
+    : { ...none, bars: amount, split: amount * 0.3 }
   return {
     size: pick(r, [3, 4, 4, 5, 5, 6]),
     symmetry: pick(r, ['full', 'full', 'mirror both', 'rotate', 'diagonal', 'mirror'] as const),
-    roles: int(r, 3, 5),
-    density: 0.4 + Math.round(r() * 4) / 10,
-    shapes: { tri: some(), quarter: some() * 0.6, half: some() * 0.6, split: some(), bars: some() * 0.5 },
+    roles: pick(r, [2, 2, 3]), // few tones by default; Depth adds more
+    density: 0.35 + Math.round(r() * 3) / 10,
+    shapes,
   }
 }
 

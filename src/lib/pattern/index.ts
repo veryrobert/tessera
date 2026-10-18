@@ -77,12 +77,14 @@ function buildColour(spec: Spec): Pattern {
   return { grid: tile(block, spec.layout, colours.length), colours, mask }
 }
 
-// Colours toward black and white: each becomes a grey by its rank in lightness, lightest white,
+// Colours toward black and white: each becomes a grey by its rank in lightness, the ground white,
 // darkest off-black, the rest evenly between, so a two-colour pattern is pure black and white
 function toned(colours: string[], tone: number, used: Set<number>): string[] {
   if (tone >= 1) return colours
   const rgb = colours.map(c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)))
   const lum = rgb.map(([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b)
+  // The ground (role 0) is always white, whatever its colour; the rest take the greys below it by lightness
+  lum[0] = 256
   const levels = [...new Set(lum.filter((_, i) => used.has(i)).map(l => Math.round(l)))].sort((a, b) => b - a)
   return rgb.map((c, i) => {
     const k = Math.max(0, levels.findIndex(l => l <= Math.round(lum[i])))
