@@ -26,10 +26,13 @@ import type { Cutout } from '@/components/pattern/PatternSvg'
 // Looks has starting points, Export saves. Pinch or drag to change how many blocks fit.
 // The whole pattern lives in the URL, so any look can be shared or bookmarked.
 
+// Spaces (photos and type areas in the pattern) are hidden for now; the code stays for later
+const SPACES = false
+
 const panels = [
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
-  { id: 'spaces', label: 'Spaces', icon: ImagePlus },
+  ...(SPACES ? [{ id: 'spaces', label: 'Spaces', icon: ImagePlus } as const] : []),
   { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'export', label: 'Export', icon: Download },
 ] as const
@@ -329,7 +332,7 @@ export default function App() {
   )
 
   // ---------- Spaces: parts of the frame given to a photo or to type ----------
-  const spaces = spec.spaces ?? []
+  const spaces = SPACES ? spec.spaces ?? [] : []
   const setSpaces = (f: (all: Space[]) => Space[]) => setSpec(s => ({ ...s, spaces: f(s.spaces ?? []) }))
   const updateSpace = (i: number, p: Partial<Space>) => setSpaces(all => all.map((sp, j) => (j === i ? { ...sp, ...p } : sp)))
   // Type sits on the palette's lightest colour to start, as on the Waybill posters
