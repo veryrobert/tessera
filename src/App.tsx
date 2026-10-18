@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Eye, Grid2x2, Grid3x3, ImagePlus, Palette, Shuffle, Trash2, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, Eye, Grid2x2, Grid3x3, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -390,38 +390,22 @@ export default function App() {
         <Field label="Draw">
           <Segmented label="Draw" value={drawing} onChange={setDrawing} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }, { value: 'off', label: 'Off' }]} />
         </Field>
-        {spaces.length > 0 && <Button variant="secondary" onClick={() => setSpaces(() => [])}>Clear all</Button>}
       </FieldGroup>
-      {spaces.map((sp, i) => (
-        <FieldGroup key={i} title={`Space ${i + 1}`}>
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage() : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }]} />
-            </div>
-            <ToolButton icon={Trash2} label="Remove" side="left" className="size-8" onClick={() => setSpaces(all => all.filter((_, j) => j !== i))} />
-          </div>
-          {sp.kind === 'blank' ? (
-            <RolePick label="Blank colour" colours={baseColours} value={sp.role} onChange={v => updateSpace(i, { role: v ?? 0 })} />
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => updateSpace(i, { image: randomImage(sp.image) })}>New image</Button>
-                <Button variant="secondary" asChild>
-                  <label className="cursor-pointer">
-                    Your photo
-                    <input type="file" accept="image/*" className="sr-only" onChange={async e => {
-                      const f = e.target.files?.[0]
-                      e.target.value = ''
-                      if (f) updateSpace(i, { image: await addUpload(f) })
-                    }} />
-                  </label>
-                </Button>
-              </div>
-              {credit(sp.image) && <p className="text-xs text-muted-foreground">{credit(sp.image)}</p>}
-            </>
-          )}
+      {spaces.length > 0 && (
+        <FieldGroup title="Spaces">
+          {spaces.map((sp, i) => (
+            <SpaceRow
+              key={i}
+              space={sp}
+              href={sp.image ? hrefs[sp.image] : undefined}
+              colours={baseColours}
+              onChange={p => updateSpace(i, p)}
+              onRemove={() => setSpaces(all => all.filter((_, j) => j !== i))}
+            />
+          ))}
+          <button type="button" className="self-start text-xs text-muted-foreground hover:text-foreground" onClick={() => setSpaces(() => [])}>Clear all</button>
         </FieldGroup>
-      ))}
+      )}
     </>
   )
 
@@ -547,6 +531,44 @@ function groupByColour(svg: SVGSVGElement) {
     if (spaces) spaces.before(g)
     else svg.append(g)
   }
+}
+
+// One space as a single row: a preview, Image or Space, then icons for a new image, your own photo and
+// removing it. A space's colours sit underneath; a photo's credit in small type.
+function SpaceRow({ space, href, colours, onChange, onRemove }: {
+  space: Space; href?: string; colours: string[]; onChange: (p: Partial<Space>) => void; onRemove: () => void
+}) {
+  const file = useRef<HTMLInputElement>(null)
+  const image = space.kind === 'image'
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-1">
+        <div className="mr-1 size-8 shrink-0 overflow-hidden rounded-md border border-border" style={{ background: image ? 'var(--muted)' : colours[space.role] }}>
+          {image && href && <img src={href} alt="" className="size-full object-cover" />}
+        </div>
+        <div className="w-24">
+          <Segmented
+            label="Kind"
+            value={space.kind}
+            onChange={k => onChange({ kind: k, image: k === 'image' ? space.image ?? randomImage() : space.image })}
+            options={[{ value: 'image', label: 'Image', icon: ImageIcon }, { value: 'blank', label: 'Space', icon: Type }]}
+          />
+        </div>
+        <div className="ml-auto flex">
+          {image && <ToolButton icon={Shuffle} label="New image" side="top" className="size-8" onClick={() => onChange({ image: randomImage(space.image) })} />}
+          {image && <ToolButton icon={Upload} label="Your photo" side="top" className="size-8" onClick={() => file.current?.click()} />}
+          <ToolButton icon={Trash2} label="Remove" side="top" className="size-8" onClick={onRemove} />
+        </div>
+        <input ref={file} type="file" accept="image/*" className="sr-only" onChange={async e => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) onChange({ image: await addUpload(f) })
+        }} />
+      </div>
+      {!image && <RolePick label="Space colour" colours={colours} value={space.role} onChange={v => onChange({ role: v ?? 0 })} />}
+      {image && credit(space.image) && <p className="text-xs text-muted-foreground">{credit(space.image)}</p>}
+    </div>
+  )
 }
 
 // A palette as bands across
