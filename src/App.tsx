@@ -16,9 +16,9 @@ import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
 import {
   type Cycle, type FieldKind, type Ground, type LayoutSpec, type Mask, type PaletteSpec, type Scheme, type ShapeMix, type Spec,
-  build, decode, defaultSpec, encode, makePalette, presets,
+  build, decode, defaultSpec, encode, makePalette, presets, rng,
 } from '@/lib/pattern'
-import { LIBRARY, PRESETS, REPEATS, SYMMETRIES, blockDefaults, newSeed, randomBlock, recolour, shuffle } from '@/state'
+import { LIBRARY, PRESETS, REPEATS, SYMMETRIES, blockDefaults, newSeed, randomBlock, randomPalette, recolour, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 
@@ -47,7 +47,20 @@ const startSpec: Spec = {
   layout: { ...defaultSpec.mode === 'block' ? defaultSpec.layout : ({} as LayoutSpec), cols: 4, rows: 4, repeat: 'mirror' },
   palette: { seed: 3, hue: null, scheme: 'complement', ground: 'light', count: 5, preset: undefined },
 }
-const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? startSpec
+// A fresh random block each time the app opens without a link: black and white, two or three tones,
+// sometimes a rectangle, at a random scale, with colours waiting behind the Colour slider
+function randomStart(): Spec {
+  const seed = newSeed(), r = rng(seed)
+  const blk = randomBlock(seed)
+  const sb = startSpec as BlockMode
+  return {
+    ...sb, seed, tone: 0, scale: 8 + Math.round(r() * 28), aspect: 1,
+    block: { ...blk, roles: 2 + Math.floor(r() * 2), density: 0.3 + r() * 0.3, rows: r() < 0.3 ? 1 + Math.floor(r() * 8) : undefined },
+    layout: { ...sb.layout, repeat: (['mirror', 'mirror', 'twist', 'grid', 'brick', 'half drop'] as const)[Math.floor(r() * 6)] },
+    palette: randomPalette(seed),
+  }
+}
+const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? randomStart()
 const SHAPE_LABELS = { tri: 'Triangles', split: 'Halves', quarter: 'Quarter circles', half: 'Half circles', bars: 'Stripes' } as const
 
 export default function App() {
