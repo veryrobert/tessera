@@ -37,21 +37,6 @@ export const credit = (image?: string) => {
   return p ? `Photo: @${p.by}, Unsplash` : null
 }
 
-// Starting layouts, after the Waybill posts and posters; the pattern fills what's left
-type Part = Omit<Space, 'role' | 'image'>
-const img = (x: number, y: number, w: number, h: number): Part => ({ x, y, w, h, kind: 'image' })
-const blank = (x: number, y: number, w: number, h: number): Part => ({ x, y, w, h, kind: 'blank' })
-export const LAYOUTS: { name: string; parts: Part[] }[] = [
-  { name: 'None', parts: [] },
-  { name: 'Type top', parts: [blank(0, 0, 1, 0.5)] },
-  { name: 'Type corner', parts: [blank(0, 0.5, 0.75, 0.5)] },
-  { name: 'Image left', parts: [img(0, 0, 0.5, 1)] },
-  { name: 'Image frame', parts: [img(0.125, 0.125, 0.75, 0.75)] },
-  { name: 'Poster', parts: [blank(0, 0, 0.75, 0.5), img(0, 0.5, 0.75, 0.5)] },
-  { name: 'Image and type', parts: [img(0, 0, 1, 0.5), blank(0, 0.5, 0.75, 0.5)] },
-  { name: 'Type and image', parts: [blank(0, 0, 0.75, 0.5), img(0.25, 0.5, 0.75, 0.5)] },
-]
-
 // ---------- Images: fetched once and kept as data URLs, so they export inside PNG and SVG ----------
 const cache = new Map<string, Promise<string>>()
 const toDataUrl = (blob: Blob) => new Promise<string>((ok, fail) => {

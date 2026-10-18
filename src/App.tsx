@@ -19,7 +19,7 @@ import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, blockWidth, newS
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
-import { type Space, LAYOUTS, addUpload, credit, loadImage, randomImage } from '@/spaces'
+import { type Space, addUpload, credit, loadImage, randomImage } from '@/spaces'
 import type { Cutout } from '@/components/pattern/PatternSvg'
 
 // tessera: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
@@ -337,15 +337,6 @@ export default function App() {
     const lum = (c: string) => [1, 3, 5].reduce((t, i, k) => t + parseInt(c.slice(i, i + 2), 16) * [0.2126, 0.7152, 0.0722][k], 0)
     return baseColours.reduce((best, c, i) => (lum(c) > lum(baseColours[best]) ? i : best), 0)
   }
-  // Layouts are drawn in quarters, so they set the pattern to four blocks across: every photo and
-  // type space is then whole blocks, as on the Waybill posts
-  const applyLayout = (parts: (typeof LAYOUTS)[number]['parts']) => setSpec(s => ({
-    ...(parts.length ? keepAcross(s, asBlock(s), 4) : s),
-    spaces: parts.map(p => ({ ...p, role: lightest(), image: p.kind === 'image' ? randomImage() : undefined })),
-  }))
-  const sameLayout = (parts: (typeof LAYOUTS)[number]['parts']) =>
-    parts.length === spaces.length && parts.every((p, i) => ['x', 'y', 'w', 'h', 'kind'].every(k => p[k as keyof typeof p] === spaces[i][k as keyof Space]))
-
   // Photos load once as data URLs, so they also export inside PNG and SVG
   const [hrefs, setHrefs] = useState<Record<string, string>>({})
   useEffect(() => {
@@ -357,7 +348,7 @@ export default function App() {
   }, [spaces, hrefs])
 
   // Drawing a space: drag on the pattern, snapped to whole cells
-  const [drawing, setDrawing] = useState(false)
+  const [drawing, setDrawing] = useState(true) // the way to add a space, so on while Spaces is open
   drawingRef.current = drawing && panel === 'spaces'
   const [draft, setDraft] = useState<{ a: [number, number]; b: [number, number] } | null>(null)
   const cellAt = (e: React.PointerEvent): [number, number] => {
@@ -393,15 +384,6 @@ export default function App() {
 
   const spacesPanel = (
     <>
-      <FieldGroup title="Layout">
-        <Tiles label="Layout">
-          {LAYOUTS.map(l => (
-            <Tile key={l.name} label={l.name} active={sameLayout(l.parts)} onClick={() => applyLayout(l.parts)}>
-              <LayoutIcon parts={l.parts} />
-            </Tile>
-          ))}
-        </Tiles>
-      </FieldGroup>
       <FieldGroup>
         <Field label="Draw a space">
           <OnOff label="Draw a space" value={drawing} onChange={setDrawing} />
@@ -558,19 +540,6 @@ function groupByColour(svg: SVGSVGElement) {
     if (spaces) spaces.before(g)
     else svg.append(g)
   }
-}
-
-// A layout in miniature: the pattern lined, photos dark, type spaces white
-function LayoutIcon({ parts }: { parts: (typeof LAYOUTS)[number]['parts'] }) {
-  return (
-    <svg viewBox="0 0 1 1" className="size-full">
-      <rect width={1} height={1} fill="var(--muted)" />
-      <path d={Array.from({ length: 7 }, (_, i) => `M${(i + 1) / 8},0v1M0,${(i + 1) / 8}h1`).join('')} stroke="var(--border)" strokeWidth={0.01} />
-      {parts.map((p, i) => (
-        <rect key={i} x={p.x} y={p.y} width={p.w} height={p.h} fill={p.kind === 'image' ? 'var(--muted-foreground)' : 'var(--foreground)'} />
-      ))}
-    </svg>
-  )
 }
 
 // A palette as bands across
