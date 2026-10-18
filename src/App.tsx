@@ -390,6 +390,7 @@ export default function App() {
         <Field label="Draw">
           <Segmented label="Draw" value={drawing} onChange={setDrawing} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Space' }, { value: 'off', label: 'Off' }]} />
         </Field>
+        {spaces.length > 0 && <Button variant="secondary" onClick={() => setSpaces(() => [])}>Clear all</Button>}
       </FieldGroup>
       {spaces.map((sp, i) => (
         <FieldGroup key={i} title={`Space ${i + 1}`}>
