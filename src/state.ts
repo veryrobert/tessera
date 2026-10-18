@@ -86,8 +86,9 @@ export function randomPalette(seed: number): PaletteSpec {
 // or without sashing and posts, each block in its own random colours or one palette for all.
 export const QUILT: LibraryName[] = [
   'corner', 'corner wide', 'square in square', 'framed square', 'antique tile', 'courthouse steps',
-  'log cabin', 'nine patch', 'double nine patch', 'capped check', 'checker', 'four patch', 'churn dash', 'plain',
-]
+  'log cabin', 'nine patch', 'double nine patch', 'capped check', 'checker', 'four patch', 'churn dash',
+  'roman square', 'basket weave', 'rail fence',
+] // sixteen, a full four by four in the picker
 
 export const blockWidth = (s: Extract<Spec, { mode: 'block' }>) => (s.source === 'generate' ? s.block.size : library[s.source][0].length)
 // Frame width for a number of blocks across, so the frame ends on whole blocks
@@ -97,8 +98,7 @@ export const scaleToAcross = (s: Extract<Spec, { mode: 'block' }>) =>
 
 export function quilt(seed: number, palette: PaletteSpec, keep: { aspect?: number; tone?: number; mask?: Spec['mask'] } = {}): Spec {
   const r = rng(seed)
-  // Plain is all ground and only shows with a gap, so random quilts leave it out
-  const source = pick(r, QUILT.filter(q => q !== 'plain'))
+  const source = pick(r, QUILT)
   const across = pick(r, [1, 2, 2, 3, 3, 4, 5])
   const sashing = 0 // no gap by default, so the frame's corners start on whole blocks; Gap adds one
   const s: Extract<Spec, { mode: 'block' }> = {
