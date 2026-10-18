@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, SlidersHorizontal, Grid2x2, LayoutTemplate, Link, Palette, Shuffle, Sparkles, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, Eye, Grid2x2, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -14,40 +14,39 @@ import { ActionDock } from '@/components/shell/ActionDock'
 import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/layout'
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
-import {
-  type ComposeStyle, type Cycle, type FieldKind, type Ground, type LayoutSpec, type Mask, type PaletteSpec, type Scheme, type ShapeMix, type Spec,
-  build, decode, encode, makePalette, presets,
-} from '@/lib/pattern'
-import { LIBRARY, PRESETS, QUILT, REPEATS, SYMMETRIES, acrossToScale, blockDefaults, newSeed, quilt, randomBlock, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
+import { type LayoutSpec, type PaletteSpec, type Spec, build, decode, encode, makePalette, presets } from '@/lib/pattern'
+import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, newSeed, quilt, randomPalette, recolour, scaleToAcross, shuffle } from '@/state'
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
 
-// kaleidoscope: quilt blocks, repeats and plaids from a seed. The whole pattern lives in the URL,
-// so any look can be shared or bookmarked.
+// kaleidoscope: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
+// Looks has starting points, Export saves. Pinch or drag to change how many blocks fit.
+// The whole pattern lives in the URL, so any look can be shared or bookmarked.
 
 const panels = [
-  { id: 'build', label: 'Build', icon: SlidersHorizontal },
-  { id: 'looks', label: 'Looks', icon: LayoutTemplate },
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
+  { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'export', label: 'Export', icon: Download },
 ] as const
 type PanelId = (typeof panels)[number]['id']
 
 type BlockMode = Extract<Spec, { mode: 'block' }>
-type PlaidMode = Extract<Spec, { mode: 'plaid' }>
-type FieldMode = Extract<Spec, { mode: 'field' }>
-type ComposeMode = Extract<Spec, { mode: 'compose' }>
+
+const FORMATS = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
+const GRID_LOOKS = looks.filter(l => l.spec.mode === 'block')
 
 // A fresh random quilt in random colours each time the app opens without a link
 const randomStart = (): Spec => quilt(newSeed(), randomPalette(newSeed()))
-const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? randomStart()
-const SHAPE_LABELS = { tri: 'Triangles', split: 'Halves', quarter: 'Quarter circles', half: 'Half circles', bars: 'Stripes' } as const
+const fromHash = (): Spec => {
+  const s = location.hash.length > 1 ? decode(location.hash) : null
+  return s?.mode === 'block' ? s : randomStart()
+}
 
 export default function App() {
   const phone = usePhone()
-  const [panel, setPanel] = useState<PanelId | null>(() => (matchMedia('(max-width: 639px)').matches ? null : 'build'))
+  const [panel, setPanel] = useState<PanelId | null>(() => (matchMedia('(max-width: 639px)').matches ? null : 'pattern'))
   const [spec, setSpecRaw] = useState<Spec>(fromHash)
   const past = useRef<Spec[]>([])
   const [note, setNote] = useState('')
@@ -87,22 +86,31 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Part updates
+  // ---------- Changes ----------
   const asBlock = (s: Spec): BlockMode => (s.mode === 'block' ? s : { ...blockDefaults, seed: s.seed, palette: s.palette })
-  const setLayout = (p: Partial<LayoutSpec>) => setSpec(s => { const b = asBlock(s); return { ...b, layout: { ...b.layout, ...p } } })
-  const setBlock = (p: Partial<BlockMode['block']>) => setSpec(s => { const b = asBlock(s); return { ...b, source: 'generate', block: { ...b.block, ...p } } })
-  const setShapes = (p: Partial<ShapeMix>) => setSpec(s => { const b = asBlock(s); return { ...b, source: 'generate', block: { ...b.block, shapes: { ...b.block.shapes, ...p } } } })
-  const setPlaid = (p: Partial<PlaidMode['plaid']>) => setSpec(s => (s.mode === 'plaid' ? { ...s, plaid: { ...s.plaid, ...p } } : s))
-  // Choosing colours brings colour in when the pattern is still black and white
+  const b = asBlock(spec)
+  const across = scaleToAcross(b)
+  // Changes that alter a block's footprint keep the same number of blocks across
+  const keepAcross = (s: Spec, next: BlockMode, n = scaleToAcross(asBlock(s))): Spec => ({ ...next, scale: acrossToScale(next, n), aspect: next.aspect ?? 1 })
+  const setAcross = (n: number) => setSpec(s => keepAcross(s, asBlock(s), n))
+  const setLayout = (p: Partial<LayoutSpec>) => setSpec(s => { const q = asBlock(s); return { ...q, layout: { ...q.layout, ...p } } })
+  const setGap = (g: number) => setSpec(s => { const q = asBlock(s); return keepAcross(s, { ...q, layout: { ...q.layout, sashing: g } }) })
+  const pickBlock = (name: (typeof QUILT)[number]) => setSpec(s => keepAcross(s, { ...asBlock(s), source: name }))
+  // Choosing colours brings colour in if the pattern was faded to black and white
   const coloured = (s: Spec): Spec => ((s.tone ?? 1) < 0.05 ? { ...s, tone: 1 } : s)
-  const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => coloured({ ...s, palette: { ...s.palette, ...p } } as Spec))
-  const setField = (p: Partial<FieldMode['field']>) => setSpec(s => (s.mode === 'field' ? { ...s, field: { ...s.field, ...p } } : s))
-  const toField = () => setSpec(s => (s.mode === 'field' ? s : { mode: 'field', seed: s.seed, palette: s.palette, mask: s.mask, field: { kind: 'camo', cols: 40, rows: 50, scale: 10 } }))
-  const setCompose = (p: Partial<ComposeMode['compose']>) => setSpec(s => (s.mode === 'compose' ? { ...s, compose: { ...s.compose, ...p } } : s))
-  const toCompose = () => setSpec(s => (s.mode === 'compose' ? s : { mode: 'compose', seed: s.seed, palette: s.palette, mask: s.mask, tone: s.tone, scale: s.scale ?? 16, aspect: s.aspect, compose: { style: 'bricks', cols: 16, rows: 16, size: 2 } }))
-  const mask: Mask = spec.mask ?? { shape: 'none', role: 0, inset: 0.1 }
-  const setMask = (p: Partial<Mask>) => setSpec(s => ({ ...s, mask: { ...mask, ...p } }))
-  const toPlaid = () => setSpec(s => (s.mode === 'plaid' ? s : { mode: 'plaid', seed: s.seed, palette: s.palette, plaid: { sett: null, mirror: true, weave: 'twill', cols: 48, rows: 48 } }))
+  const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => coloured({ ...s, palette: { ...s.palette, ...p } }))
+
+  // Pinch, drag up and down, or the wheel: blocks across, a whole block at a time.
+  // The gesture is one undo step: it checkpoints once, then steps without adding history.
+  const latest = useRef(spec)
+  latest.current = spec
+  useStepZoom(stage, {
+    value: () => scaleToAcross(asBlock(latest.current)),
+    set: n => setSpecRaw(s => keepAcross(s, asBlock(s), n)),
+    begin: () => { past.current = [...past.current.slice(-60), latest.current] },
+    min: 1,
+    max: 16,
+  })
 
   // ---------- Export ----------
   const svgEl = () => stage.current?.querySelector('svg') ?? null
@@ -145,216 +153,16 @@ export default function App() {
   }
 
   // ---------- Panels ----------
-  const b = spec.mode === 'block' ? spec : null
-  const pal = spec.palette
-
-  const patternPanel = (
-    <>
-      <FieldGroup>
-        <Field label="Kind">
-          <Segmented label="Kind" value={spec.mode} onChange={m => (m === 'plaid' ? toPlaid() : m === 'field' ? toField() : m === 'compose' ? toCompose() : setSpec(asBlock))} options={[{ value: 'block', label: 'Blocks' }, { value: 'compose', label: 'Compose' }, { value: 'plaid', label: 'Plaid' }, { value: 'field', label: 'Field' }]} />
-        </Field>
-      </FieldGroup>
-      {b && (
-        <FieldGroup title="Block">
-          <Tiles label="Block">
-            <Tile label="Generate" active={b.source === 'generate'} onClick={() => setSpec(s => ({ ...asBlock(s), source: 'generate' }))}>
-              <Sparkles className="size-5 text-muted-foreground" strokeWidth={1.5} />
-            </Tile>
-            {LIBRARY.map(name => (
-              <Tile key={name} label={name} active={b.source === name} onClick={() => setSpec(s => ({ ...asBlock(s), source: name }))}>
-                <PatternSvg pattern={build({ ...b, source: name, layout: { ...b.layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', colourways: 1, invert: false } })} className="size-full" />
-              </Tile>
-            ))}
-          </Tiles>
-        </FieldGroup>
-      )}
-      {b?.source === 'generate' && (
-        <FieldGroup title="Generate">
-          <Field label="Across">
-            <Slider min={1} max={10} step={1} value={[b.block.size]} onValueChange={([v]) => setBlock({ size: v, rows: b.block.rows ?? b.block.size })} aria-label="Cells across" />
-          </Field>
-          <Field label="Down">
-            <Slider min={1} max={10} step={1} value={[b.block.rows ?? b.block.size]} onValueChange={([v]) => setBlock({ rows: v })} aria-label="Cells down" />
-          </Field>
-          <Field label="Symmetry">
-            <Choices label="Symmetry" value={b.block.symmetry} onChange={v => setBlock({ symmetry: v })} options={SYMMETRIES} />
-          </Field>
-          <Field label="Fill">
-            <Slider min={0.1} max={1} step={0.05} value={[b.block.density]} onValueChange={([v]) => setBlock({ density: v })} aria-label="Fill" />
-          </Field>
-          <Field label="Colours">
-            <Slider min={2} max={Math.max(2, pal.count)} step={1} value={[Math.min(b.block.roles, pal.count)]} onValueChange={([v]) => setBlock({ roles: v })} aria-label="Colours" />
-          </Field>
-          {(['tri', 'split', 'quarter', 'half', 'bars'] as const).map(k => (
-            <Field key={k} label={SHAPE_LABELS[k]}>
-              <Slider min={0} max={2} step={0.1} value={[b.block.shapes[k]]} onValueChange={([v]) => setShapes({ [k]: v })} aria-label={SHAPE_LABELS[k]} />
-            </Field>
-          ))}
-          <Button variant="secondary" onClick={() => setSpec(s => ({ ...asBlock(s), seed: newSeed() }))}>New block</Button>
-        </FieldGroup>
-      )}
-      {spec.mode === 'compose' && (
-        <FieldGroup title="Compose">
-          <Field label="Style">
-            <Segmented<ComposeStyle> label="Style" value={spec.compose.style} onChange={v => setCompose({ style: v })} options={[{ value: 'bricks', label: 'Bricks' }, { value: 'strips', label: 'Strips' }, { value: 'stripes', label: 'Stripes' }]} />
-          </Field>
-          <Field label="Size">
-            <Slider min={1} max={8} step={1} value={[spec.compose.size]} onValueChange={([v]) => setCompose({ size: v })} aria-label="Piece size" />
-          </Field>
-          <Button variant="secondary" onClick={() => setSpec(s => ({ ...s, seed: newSeed() }))}>New layout</Button>
-        </FieldGroup>
-      )}
-      {spec.mode === 'field' && (
-        <FieldGroup title="Field">
-          <Field label="Kind">
-            <Segmented<FieldKind> label="Field" value={spec.field.kind} onChange={v => setField({ kind: v })} options={[{ value: 'camo', label: 'Camo' }, { value: 'patches', label: 'Patches' }, { value: 'streaks', label: 'Streaks' }]} />
-          </Field>
-          <Field label="Across">
-            <Slider min={4} max={120} step={1} value={[spec.field.cols]} onValueChange={([v]) => setField({ cols: v })} aria-label="Across" />
-          </Field>
-          <Field label="Down">
-            <Slider min={4} max={150} step={1} value={[spec.field.rows]} onValueChange={([v]) => setField({ rows: v })} aria-label="Down" />
-          </Field>
-          {spec.field.kind !== 'patches' && (
-            <Field label={spec.field.kind === 'camo' ? 'Blob size' : 'Run length'}>
-              <Slider min={1} max={30} step={1} value={[spec.field.scale]} onValueChange={([v]) => setField({ scale: v })} aria-label="Scale" />
-            </Field>
-          )}
-          <Button variant="secondary" onClick={() => setSpec(s => ({ ...s, seed: newSeed() }))}>New field</Button>
-        </FieldGroup>
-      )}
-      <FieldGroup title="Shape">
-        <Field label="Cut to">
-          <Segmented<Mask['shape']> label="Cut to" value={mask.shape} onChange={v => setMask({ shape: v })} options={[{ value: 'none', label: 'None' }, { value: 'circle', label: 'Circle' }, { value: 'arch', label: 'Arch' }, { value: 'diamond', label: 'Diamond' }]} />
-        </Field>
-        {mask.shape !== 'none' && (
-          <>
-            <Field label="Margin">
-              <Slider min={0} max={0.5} step={0.01} value={[mask.inset]} onValueChange={([v]) => setMask({ inset: v })} aria-label="Margin" />
-            </Field>
-            <Field label="Around">
-              <RolePick label="Around" colours={pattern.colours} value={mask.role} onChange={v => setMask({ role: v ?? 0 })} />
-            </Field>
-          </>
-        )}
-      </FieldGroup>
-      {spec.mode === 'plaid' && (
-        <FieldGroup title="Plaid">
-          <Field label="Weave">
-            <Segmented label="Weave" value={spec.plaid.weave} onChange={v => setPlaid({ weave: v })} options={[{ value: 'plain', label: 'Plain' }, { value: 'twill', label: 'Twill' }, { value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />
-          </Field>
-          <Field label="Reflect">
-            <OnOff label="Reflect" value={spec.plaid.mirror} onChange={v => setPlaid({ mirror: v })} />
-          </Field>
-          <Field label="Size">
-            <Slider min={12} max={120} step={4} value={[spec.plaid.cols]} onValueChange={([v]) => setPlaid({ cols: v, rows: v })} aria-label="Size" />
-          </Field>
-          <Button variant="secondary" onClick={() => setSpec(s => ({ ...s, seed: newSeed() }))}>New stripes</Button>
-        </FieldGroup>
-      )}
-    </>
-  )
-
-  const colourPanel = (
-    <>
-      <FieldGroup>
-        <Field label="Colour">
-          <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour amount" />
-        </Field>
-      </FieldGroup>
-      <FieldGroup title="Sets">
-        <Tiles label="Colour set" cols={3}>
-          {PRESETS.map(name => (
-            <Tile key={name} label={name} active={pal.preset === name} onClick={() => setPalette({ preset: name, count: presets[name].length })}>
-              <Strip colours={presets[name]} />
-            </Tile>
-          ))}
-          <Tile label="Generated" active={!pal.preset} onClick={() => setPalette({ preset: undefined })}>
-            <Strip colours={makePalette({ ...pal, preset: undefined })} />
-          </Tile>
-        </Tiles>
-      </FieldGroup>
-      {!pal.preset && (
-        <FieldGroup title="Generated">
-          <Field label="Scheme">
-            <Choices<Scheme> label="Scheme" value={pal.scheme} onChange={v => setPalette({ scheme: v })} options={[
-              { value: 'tonal', label: 'Tonal' }, { value: 'complement', label: 'Opposite' }, { value: 'split', label: 'Split' },
-              { value: 'triad', label: 'Triad' }, { value: 'analogous', label: 'Near' }, { value: 'scatter', label: 'Scatter' },
-            ]} />
-          </Field>
-          <Field label="Ground">
-            <Segmented<Ground> label="Ground" value={pal.ground} onChange={v => setPalette({ ground: v })} options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'colour', label: 'Colour' }]} />
-          </Field>
-          <Field label="Hue">
-            <Slider min={0} max={359} step={1} value={[pal.hue ?? 0]} onValueChange={([v]) => setPalette({ hue: v })} aria-label="Hue" />
-          </Field>
-          <Field label="Colours">
-            <Slider min={2} max={8} step={1} value={[pal.count]} onValueChange={([v]) => setPalette({ count: v })} aria-label="Colours" />
-          </Field>
-          <Button variant="secondary" onClick={() => setPalette({ seed: newSeed(), hue: null })}>New colours</Button>
-        </FieldGroup>
-      )}
-      {b && (
-        <FieldGroup title="Across blocks">
-          <Field label="Mix">
-            <Slider min={1} max={16} step={1} value={[b.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix palettes" />
-          </Field>
-          {(b.layout.palettes ?? 1) === 1 && (
-            <Field label="Colourways">
-              <Slider min={1} max={4} step={1} value={[b.layout.colourways]} onValueChange={([v]) => setLayout({ colourways: v })} aria-label="Colourways" />
-            </Field>
-          )}
-          {(b.layout.palettes ?? 1) === 1 && b.layout.colourways > 1 && (
-            <Field label="Order">
-              <Segmented<Cycle> label="Order" value={b.layout.cycle} onChange={v => setLayout({ cycle: v })} options={[{ value: 'alternate', label: 'Alternate' }, { value: 'diagonal', label: 'Diagonal' }, { value: 'random', label: 'Random' }]} />
-            </Field>
-          )}
-        </FieldGroup>
-      )}
-      <FieldGroup title="In use">
-        <div className="h-8 overflow-hidden rounded-md border border-border">
-          <Strip colours={pattern.colours} />
-        </div>
-      </FieldGroup>
-    </>
-  )
-
-  const cellsAcross = spec.scale ?? (pattern.view?.w ?? pattern.grid[0].length)
-  const formats = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
+  // Pattern: the block, how many fit, how they repeat, the gaps between, the frame
+  const baseColours = pattern.colours.slice(0, spec.palette.count)
   const aspect = String(spec.aspect ?? 1)
-  // Build: pick a block, then how many across, the gap between, posts, and how mixed the colours are
-  const across = b ? scaleToAcross(b) : 3
-  const withAcross = (s: Spec, n: number): Spec => { const q = asBlock(s); return { ...q, scale: acrossToScale(q, n), aspect: q.aspect ?? 1 } }
-  const setAcross = (n: number) => setSpec(s => withAcross(s, n))
-  // Pinch, drag up and down, or the wheel: blocks across, a whole block at a time.
-  // The gesture is one undo step: it checkpoints once, then steps without adding history.
-  const latest = useRef(spec)
-  latest.current = spec
-  useStepZoom(stage, {
-    value: () => (latest.current.mode === 'block' ? scaleToAcross(latest.current) : null),
-    set: n => setSpecRaw(s => withAcross(s, n)),
-    begin: () => { past.current = [...past.current.slice(-60), latest.current] },
-    min: 1,
-    max: 16,
-  })
-  const setGap = (g: number) => setSpec(s => {
-    const q = asBlock(s), n = scaleToAcross(q)
-    const next = { ...q, layout: { ...q.layout, sashing: g } }
-    return { ...next, scale: acrossToScale(next, n) }
-  })
-  const pickBlock = (name: (typeof QUILT)[number]) => setSpec(s => {
-    const q = asBlock(s), n = scaleToAcross(q)
-    const next = { ...q, source: name }
-    return { ...next, scale: acrossToScale(next, n), aspect: q.aspect ?? 1 }
-  })
-  const buildPanel = (
+  const patternPanel = (
     <>
       <FieldGroup title="Block">
         <Tiles label="Block">
           {QUILT.map(name => (
-            <Tile key={name} label={name} active={b?.source === name} onClick={() => pickBlock(name)}>
-              <PatternSvg pattern={build({ ...asBlock(spec), source: name, scale: undefined, mask: undefined, layout: { ...asBlock(spec).layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', palettes: 1 } })} className="size-full" />
+            <Tile key={name} label={name} active={b.source === name} onClick={() => pickBlock(name)}>
+              <PatternSvg pattern={build({ ...b, source: name, scale: undefined, mask: undefined, layout: { ...b.layout, cols: 1, rows: 1, sashing: 0, repeat: 'grid', invert: false, palettes: 1 } })} className="size-full" />
             </Tile>
           ))}
         </Tiles>
@@ -363,31 +171,51 @@ export default function App() {
         <Field label="Blocks across">
           <Slider min={1} max={16} step={1} value={[across]} onValueChange={([v]) => setAcross(v)} aria-label="Blocks across" />
         </Field>
-        {b && (
+        <Field label="Repeat">
+          <Choices label="Repeat" cols={4} value={b.layout.repeat} onChange={v => setLayout({ repeat: v })} options={REPEATS} />
+        </Field>
+        <Field label="Swap alternate">
+          <OnOff label="Swap alternate" value={b.layout.invert} onChange={v => setLayout({ invert: v })} />
+        </Field>
+        <Field label="Gap">
+          <Slider min={0} max={3} step={1} value={[b.layout.sashing]} onValueChange={([v]) => setGap(v)} aria-label="Gap" />
+        </Field>
+        {b.layout.sashing > 0 && (
           <>
-            <Field label="Repeat">
-              <Choices label="Repeat" cols={4} value={b.layout.repeat} onChange={v => setLayout({ repeat: v })} options={REPEATS} />
+            <Field label="Gap colour">
+              <RolePick label="Gap colour" colours={baseColours} value={b.layout.sashRole} onChange={v => setLayout({ sashRole: v ?? 0 })} />
             </Field>
-            <Field label="Swap alternate">
-              <OnOff label="Swap alternate" value={b.layout.invert} onChange={v => setLayout({ invert: v })} />
+            <Field label="Corners">
+              <RolePick label="Corners" colours={baseColours} value={b.layout.postRole} onChange={v => setLayout({ postRole: v })} none />
             </Field>
-            <Field label="Gap">
-              <Slider min={0} max={3} step={1} value={[b.layout.sashing]} onValueChange={([v]) => setGap(v)} aria-label="Gap" />
-            </Field>
-            {b.layout.sashing > 0 && (
-              <>
-                <Field label="Gap colour">
-                  <RolePick label="Gap colour" colours={pattern.colours.slice(0, spec.palette.count)} value={b.layout.sashRole} onChange={v => setLayout({ sashRole: v ?? 0 })} />
-                </Field>
-                <Field label="Posts">
-                  <RolePick label="Posts" colours={pattern.colours.slice(0, spec.palette.count)} value={b.layout.postRole} onChange={v => setLayout({ postRole: v })} none />
-                </Field>
-              </>
-            )}
           </>
         )}
         <Field label="Format">
-          <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
+          <Segmented label="Format" value={FORMATS.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => keepAcross(s, { ...asBlock(s), aspect: +v }))} options={FORMATS} />
+        </Field>
+      </FieldGroup>
+    </>
+  )
+
+  // Colour: a set or random colours, how many blocks get their own, and how much colour at all
+  const pal = spec.palette
+  const colourPanel = (
+    <>
+      <FieldGroup title="Colours">
+        <Tiles label="Colours" cols={3}>
+          <Tile label="Random" active={!pal.preset} onClick={() => setSpec(s => coloured(recolour(s)))}>
+            {pal.preset ? <Shuffle className="size-5 text-muted-foreground" strokeWidth={1.5} /> : <Strip colours={makePalette(pal)} />}
+          </Tile>
+          {PRESETS.map(name => (
+            <Tile key={name} label={name} active={pal.preset === name} onClick={() => setPalette({ preset: name, count: presets[name].length })}>
+              <Strip colours={presets[name]} />
+            </Tile>
+          ))}
+        </Tiles>
+      </FieldGroup>
+      <FieldGroup>
+        <Field label="Mix">
+          <Slider min={1} max={16} step={1} value={[b.layout.palettes ?? 1]} onValueChange={([v]) => setLayout({ palettes: v })} aria-label="Mix" />
         </Field>
         <Field label="Colour">
           <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour" />
@@ -398,7 +226,7 @@ export default function App() {
 
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
-      {looks.map(l => (
+      {GRID_LOOKS.map(l => (
         <Tile key={l.name} label={l.name} active={encode(l.spec) === encode(spec)} onClick={() => setSpec(l.spec)}>
           <PatternSvg pattern={build(l.spec)} className="size-full" />
         </Tile>
@@ -436,24 +264,19 @@ export default function App() {
       <PanelRail panels={panels} open={panel} onToggle={id => setPanel(panel === id ? null : id)} phone={phone} />
 
       <PanelSheet open={panel !== null} title={current?.label} onClose={() => setPanel(null)} phone={phone}>
-        {panel === 'build' && buildPanel}
-        {panel === 'looks' && looksPanel}
         {panel === 'pattern' && patternPanel}
         {panel === 'colour' && colourPanel}
+        {panel === 'looks' && looksPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
 
       <ActionDock phone={phone} panelOpen={panel !== null}>
         {note && <div className="panel rounded-full px-3 py-1.5 text-xs">{note}</div>}
-        <Toolbar aria-label="Pattern">
+        <Toolbar aria-label="Actions">
           <ToolButton icon={Shuffle} label="Shuffle" side="top" onClick={() => setSpec(shuffle)} />
-          <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(recolour)} />
-          {b?.source === 'generate' && (
-            <ToolButton icon={Sparkles} label="New block" side="top" onClick={() => setSpec(s => ({ ...asBlock(s), seed: newSeed(), block: { ...randomBlock(newSeed()), roles: asBlock(s).block.roles } }))} />
-          )}
+          <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(s => coloured(recolour(s)))} />
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
           <ToolbarSeparator />
-          <ToolButton icon={Link} label="Copy link" side="top" onClick={copyLink} />
           <ToolButton icon={Download} label="Download PNG" side="top" onClick={() => exportPng(4096)} />
         </Toolbar>
       </ActionDock>
@@ -470,7 +293,7 @@ function Strip({ colours }: { colours: readonly string[] }) {
   )
 }
 
-// Pick one of the pattern's colours by role, or none
+// Pick one of the palette's colours, or none
 function RolePick({ label, colours, value, onChange, none }: { label: string; colours: string[]; value: number | null; onChange: (v: number | null) => void; none?: boolean }) {
   const ring = 'outline-2 outline-offset-2 outline-foreground'
   return (
