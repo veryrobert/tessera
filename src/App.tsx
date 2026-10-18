@@ -12,6 +12,7 @@ import { PanelSheet } from '@/components/shell/PanelSheet'
 import { ActionDock } from '@/components/shell/ActionDock'
 import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/layout'
 import { FORMATS, START_FORMAT, formatTall, type FormatName } from '@/components/shell/formats'
+import { thumbnail } from '@/components/shell/thumbnail'
 const START_TALL = formatTall(START_FORMAT)
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
@@ -216,10 +217,10 @@ export default function App() {
   // As text, which Figma and code editors take as a paste
   const copySvg = () => copied('SVG', () => navigator.clipboard.writeText(svgString(svgEl(svgSize)!)))
   // PNG at the chosen size: Large is 4096px on the long side, Pixel a pixel per cell
-  const renderPng = async (): Promise<Blob> => {
-    const el = svgEl(svgSize)!
+  const renderPng = async (size: 'large' | 'pixel' = svgSize): Promise<Blob> => {
+    const el = svgEl(size)!
     const w = +el.getAttribute('width')!, h = +el.getAttribute('height')!
-    const k = svgSize === 'pixel' ? 1 : 2, W = w * k, H = h * k
+    const k = size === 'pixel' ? 1 : 2, W = w * k, H = h * k
     el.setAttribute('width', String(W))
     el.setAttribute('height', String(H))
     const img = new Image()
@@ -235,6 +236,8 @@ export default function App() {
     return new Promise((ok, fail) => c.toBlob(b => (b ? ok(b) : fail(new Error('no image'))), 'image/png'))
   }
   const exportPng = async () => save(await renderPng(), 'tessera.png')
+  // The index thumbnail: 16:10, the pattern centred on black (see shell/thumbnail.ts)
+  const exportThumb = async () => save(await thumbnail(await renderPng('large')), 'tessera-thumbnail.png')
   const copied = async (what: string, run: () => Promise<void>) => {
     try {
       await run()
@@ -522,11 +525,12 @@ export default function App() {
           ['SVG', exportSvg, copySvg],
           ['Colours', null, copyColours],
           ['Link', null, copyLink],
+          ['Thumbnail', exportThumb, null],
         ] as const).map(([name, saveIt, copyIt]) => (
           <div key={name} className="flex items-center gap-1 border-b border-border py-1.5 last:border-0">
             <span className="flex-1 text-xs">{name}</span>
             {saveIt && <ToolButton icon={Download} label={`Save ${name}`} side="top" className="size-8" onClick={saveIt} />}
-            <ToolButton icon={Copy} label={`Copy ${name.length === 3 ? name : name.toLowerCase()}`} side="top" className="size-8" onClick={copyIt} />
+            {copyIt && <ToolButton icon={Copy} label={`Copy ${name.length === 3 ? name : name.toLowerCase()}`} side="top" className="size-8" onClick={copyIt} />}
           </div>
         ))}
       </div>
