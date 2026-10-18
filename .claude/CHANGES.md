@@ -1,5 +1,8 @@
 # Change Log
 
+## 2026-10-18 — Renamed to tessera
+- kaleidoscope is now tessera (one small tile of a mosaic): repo, title, tessera.robertfarrelly.com, downloads named tessera
+
 ## 2026-10-18 — First push: kaleidoscope
 - Quilt blocks on a grid in random colours, after Waybill's swatches and the scrap quilt; opens on a random quilt
 - Pattern: block (plain lined tiles, small to big), blocks across, repeat, swap alternate, gap with its colour and corners, format
