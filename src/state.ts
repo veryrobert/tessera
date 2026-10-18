@@ -92,7 +92,8 @@ export function shuffle(s: Spec): Spec {
 }
 
 // Same form, new colours
-export const recolour = (s: Spec): Spec => ({ ...s, palette: randomPalette(newSeed()) } as Spec)
+// Recolouring a black and white pattern brings the colour in
+export const recolour = (s: Spec): Spec => ({ ...s, palette: randomPalette(newSeed()), tone: (s.tone ?? 1) < 0.05 ? 1 : s.tone } as Spec)
 
 // The block and layout settings to fall back on when switching from plaid
 export const blockDefaults = defaultSpec as Extract<Spec, { mode: 'block' }>

@@ -98,7 +98,9 @@ export default function App() {
   const setBlock = (p: Partial<BlockMode['block']>) => setSpec(s => { const b = asBlock(s); return { ...b, source: 'generate', block: { ...b.block, ...p } } })
   const setShapes = (p: Partial<ShapeMix>) => setSpec(s => { const b = asBlock(s); return { ...b, source: 'generate', block: { ...b.block, shapes: { ...b.block.shapes, ...p } } } })
   const setPlaid = (p: Partial<PlaidMode['plaid']>) => setSpec(s => (s.mode === 'plaid' ? { ...s, plaid: { ...s.plaid, ...p } } : s))
-  const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => ({ ...s, palette: { ...s.palette, ...p } }) as Spec)
+  // Choosing colours brings colour in when the pattern is still black and white
+  const coloured = (s: Spec): Spec => ((s.tone ?? 1) < 0.05 ? { ...s, tone: 1 } : s)
+  const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => coloured({ ...s, palette: { ...s.palette, ...p } } as Spec))
   const setField = (p: Partial<FieldMode['field']>) => setSpec(s => (s.mode === 'field' ? { ...s, field: { ...s.field, ...p } } : s))
   const toField = () => setSpec(s => (s.mode === 'field' ? s : { mode: 'field', seed: s.seed, palette: s.palette, mask: s.mask, field: { kind: 'camo', cols: 40, rows: 50, scale: 10 } }))
   const mask: Mask = spec.mask ?? { shape: 'none', role: 0, inset: 0.1 }
@@ -290,6 +292,11 @@ export default function App() {
 
   const colourPanel = (
     <>
+      <FieldGroup>
+        <Field label="Colour">
+          <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour amount" />
+        </Field>
+      </FieldGroup>
       <FieldGroup title="Sets">
         <Tiles label="Colour set" cols={3}>
           {PRESETS.map(name => (
