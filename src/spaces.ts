@@ -7,25 +7,25 @@
 import type { Space } from '@/lib/pattern'
 export type { Space }
 
-// Simple, friendly portraits on plain or coloured backgrounds (studio-ish, not moody), from Unsplash
+// Everyday people, warm and candid, mid-shot, in colour, as in the Waybill posts; from Unsplash
 // (free to use under the Unsplash License), loaded from Unsplash's image server and cropped to the space
 export const PORTRAITS = [
-  { path: 'photo-1531746020798-e6953c6e8e04', by: 'jimmyferminphotography' },
-  { path: 'photo-1764069415137-756fbca30a17', by: 'chriscreations__' },
-  { path: 'photo-1784651988968-8e66442d058c', by: 'thisismcfollis' },
-  { path: 'photo-1631002724711-d1ae3cf651b0', by: 'oiasana' },
-  { path: 'photo-1649058047388-b49c028df9ac', by: 'rehtrew' },
-  { path: 'photo-1608355023471-c13d29ac8fbf', by: 'mannydream' },
-  { path: 'photo-1520529277867-dbf8c5e0b340', by: 'jotalao' },
-  { path: 'photo-1535295972055-1c762f4483e5', by: 'von_co' },
-  { path: 'flagged/photo-1596479042555-9265a7fa7983', by: 'jsshotz' },
-  { path: 'photo-1580489944761-15a19d654956', by: 'jakenackos' },
-  { path: 'photo-1613419441661-6a5af1751d30', by: 'real_chance12' },
-  { path: 'photo-1745434159123-4908d0b9df94', by: 'brookebalentine' },
-  { path: 'photo-1585237017125-24baf8d7406f', by: 'sincerelymedia' },
-  { path: 'photo-1611695434369-a8f5d76ceb7b', by: 'nicotitto' },
-  { path: 'photo-1656593449296-0ae0f849a578', by: 'kohlun2000' },
-  { path: 'photo-1567479169571-44be2b9916b2', by: 'labmagik' },
+  { path: 'photo-1626470689496-503424c78c08', by: 'sample_in_photography' },
+  { path: 'photo-1738739906007-d7372e74c329', by: 'cmrcn_' },
+  { path: 'photo-1765046300927-6c1827612c42', by: 'vanishing_point_images' },
+  { path: 'photo-1779369495842-7a16b773f4b9', by: 'alef_visuals' },
+  { path: 'photo-1747374135959-9291ba69215e', by: 'aks_by_aamir' },
+  { path: 'photo-1706951413911-a4477e18ccd5', by: 'martynovych' },
+  { path: 'photo-1627130595904-ebeeb6540a93', by: 'freddy_mishiki' },
+  { path: 'photo-1654272763471-87c0ebf395f8', by: 'cutinamoment' },
+  { path: 'photo-1579105728744-9d6b14a45389', by: 'itsomidarmin' },
+  { path: 'photo-1594756154841-ac5d160dbf46', by: 'meganmarkham' },
+  { path: 'photo-1549045337-967927d923c0', by: 'sayolo' },
+  { path: 'photo-1685541003882-7328ef51bac8', by: 'divaris' },
+  { path: 'photo-1746688833041-4681ba4d5cf4', by: 'hng21' },
+  { path: 'photo-1508002366005-75a695ee2d17', by: 'isaiahmcclean' },
+  { path: 'photo-1611682060567-d7b07878d380', by: 'gemasaputera' },
+  { path: 'photo-1749700332031-cf99864959ea', by: 'ogulu_18' },
 ] as const
 
 export const randomImage = (not?: string) => {
