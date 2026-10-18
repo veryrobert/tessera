@@ -24,7 +24,9 @@ export type Mask = { shape: 'none' | 'circle' | 'arch' | 'diamond'; role: number
 // scale: cells across a fixed frame (aspect is its height over width). Set, the pattern repeats to
 // fill the frame and scale zooms it smoothly; unset, the frame fits the layout's tiles.
 // offset: how far the pattern is slid under the frame, in cells
-type Common = { seed: number; palette: PaletteSpec; mask?: Mask; tone?: number; scale?: number; aspect?: number; offset?: [number, number] }
+// spaces: parts of the frame the pattern gives way to, for a photo or type (fractions of the frame)
+export type Space = { x: number; y: number; w: number; h: number; kind: 'image' | 'blank'; role: number; image?: string }
+type Common = { seed: number; palette: PaletteSpec; mask?: Mask; tone?: number; scale?: number; aspect?: number; offset?: [number, number]; spaces?: Space[] }
 export type Spec = Common & (
   | { mode: 'block'; source: LibraryName | 'generate'; block: BlockSpec; layout: LayoutSpec }
   | { mode: 'plaid'; plaid: Omit<PlaidSpec, 'sett'> & { sett: PlaidSpec['sett'] | null } }

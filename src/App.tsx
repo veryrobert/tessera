@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Eye, Grid2x2, Grid3x3, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, Eye, Grid2x2, Grid3x3, ImagePlus, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -19,6 +19,8 @@ import { PRESETS, QUILT, REPEATS, acrossToScale, blockDefaults, newSeed, quilt, 
 import { cn } from '@/lib/utils'
 import { looks } from '@/looks'
 import { useStepZoom } from '@/gestures'
+import { type ImageSet, type Space, LAYOUTS, addUpload, credit, loadImage, randomImage, setOf } from '@/spaces'
+import type { Cutout } from '@/components/pattern/PatternSvg'
 
 // tessera: quilt blocks on a grid, in random colours. Pattern sets the form, Colour the colours,
 // Looks has starting points, Export saves. Pinch or drag to change how many blocks fit.
@@ -27,6 +29,7 @@ import { useStepZoom } from '@/gestures'
 const panels = [
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'colour', label: 'Colour', icon: Palette },
+  { id: 'spaces', label: 'Spaces', icon: ImagePlus },
   { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'export', label: 'Export', icon: Download },
 ] as const
@@ -139,6 +142,7 @@ export default function App() {
   const latest = useRef(spec)
   latest.current = spec
   const cellRef = useRef(20)
+  const drawingRef = useRef(false)
   cellRef.current = cellPx
   useStepZoom(stage, {
     value: () => scaleToAcross(asBlock(latest.current)),
@@ -149,6 +153,7 @@ export default function App() {
     offset: () => latest.current.offset ?? [0, 0],
     slide: (x, y) => setSpecRaw(s => ({ ...s, offset: [x, y] })),
     cellPx: () => cellRef.current,
+    enabled: () => !drawingRef.current,
   })
 
   // ---------- Export ----------
@@ -323,11 +328,114 @@ export default function App() {
     </>
   )
 
+  // ---------- Spaces: parts of the frame given to a photo or to type ----------
+  const spaces = spec.spaces ?? []
+  const setSpaces = (f: (all: Space[]) => Space[]) => setSpec(s => ({ ...s, spaces: f(s.spaces ?? []) }))
+  const updateSpace = (i: number, p: Partial<Space>) => setSpaces(all => all.map((sp, j) => (j === i ? { ...sp, ...p } : sp)))
+  const [imageSet, setImageSet] = useState<ImageSet>('people')
+  // Type sits on the palette's lightest colour to start, as on the Waybill posters
+  const lightest = () => {
+    const lum = (c: string) => [1, 3, 5].reduce((t, i, k) => t + parseInt(c.slice(i, i + 2), 16) * [0.2126, 0.7152, 0.0722][k], 0)
+    return baseColours.reduce((best, c, i) => (lum(c) > lum(baseColours[best]) ? i : best), 0)
+  }
+  const applyLayout = (parts: (typeof LAYOUTS)[number]['parts']) =>
+    setSpaces(() => parts.map(p => ({ ...p, role: lightest(), image: p.kind === 'image' ? randomImage(imageSet) : undefined })))
+  const sameLayout = (parts: (typeof LAYOUTS)[number]['parts']) =>
+    parts.length === spaces.length && parts.every((p, i) => ['x', 'y', 'w', 'h', 'kind'].every(k => p[k as keyof typeof p] === spaces[i][k as keyof Space]))
+
+  // Photos load once as data URLs, so they also export inside PNG and SVG
+  const [hrefs, setHrefs] = useState<Record<string, string>>({})
+  useEffect(() => {
+    for (const sp of spaces) {
+      const img = sp.image
+      if (sp.kind !== 'image' || !img || hrefs[img]) continue
+      loadImage(img).then(url => setHrefs(h => ({ ...h, [img]: url }))).catch(() => {})
+    }
+  }, [spaces, hrefs])
+
+  // Drawing a space: drag on the pattern, snapped to whole cells
+  const [drawing, setDrawing] = useState(false)
+  drawingRef.current = drawing && panel === 'spaces'
+  const [draft, setDraft] = useState<{ a: [number, number]; b: [number, number] } | null>(null)
+  const cellAt = (e: React.PointerEvent): [number, number] => {
+    const r = stage.current!.querySelector('svg')!.getBoundingClientRect()
+    const c = r.width / view.w
+    return [Math.max(0, Math.min(Math.ceil(view.w) - 1, Math.floor((e.clientX - r.left) / c))), Math.max(0, Math.min(Math.ceil(view.h) - 1, Math.floor((e.clientY - r.top) / c)))]
+  }
+  const draftSpace = (d: NonNullable<typeof draft>): Space => {
+    const x0 = Math.min(d.a[0], d.b[0]), x1 = Math.max(d.a[0], d.b[0]) + 1, y0 = Math.min(d.a[1], d.b[1]), y1 = Math.max(d.a[1], d.b[1]) + 1
+    return { x: x0 / view.w, y: y0 / view.h, w: (x1 - x0) / view.w, h: (y1 - y0) / view.h, kind: 'image', role: 0, image: randomImage(imageSet) }
+  }
+  const drawHandlers = drawingRef.current ? {
+    onPointerDown: (e: React.PointerEvent) => { e.currentTarget.setPointerCapture(e.pointerId); const c = cellAt(e); setDraft({ a: c, b: c }) },
+    onPointerMove: (e: React.PointerEvent) => { if (draft) setDraft({ ...draft, b: cellAt(e) }) },
+    onPointerUp: () => { if (draft) { const sp = draftSpace(draft); setSpaces(all => [...all, sp]) } setDraft(null) },
+  } : {}
+
+  // Spaces as drawn: snapped to whole cells of the frame as it is now
+  const cutouts: Cutout[] = [...spaces, ...(draft ? [{ ...draftSpace(draft), image: undefined, kind: 'blank' as const }] : [])].map((sp, i) => {
+    const x0 = Math.round(sp.x * view.w), x1 = Math.round((sp.x + sp.w) * view.w), y0 = Math.round(sp.y * view.h), y1 = Math.round((sp.y + sp.h) * view.h)
+    const isDraft = draft && i === spaces.length
+    return {
+      x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0),
+      fill: isDraft ? 'rgb(255 255 255 / 0.55)' : sp.kind === 'blank' ? pattern.colours[sp.role] : 'rgb(128 128 128 / 0.35)',
+      href: sp.kind === 'image' && sp.image ? hrefs[sp.image] : undefined,
+    }
+  })
+
+  const spacesPanel = (
+    <>
+      <FieldGroup title="Layout">
+        <Tiles label="Layout">
+          {LAYOUTS.map(l => (
+            <Tile key={l.name} label={l.name} active={sameLayout(l.parts)} onClick={() => applyLayout(l.parts)}>
+              <LayoutIcon parts={l.parts} />
+            </Tile>
+          ))}
+        </Tiles>
+      </FieldGroup>
+      <FieldGroup>
+        <Field label="Images">
+          <Segmented<ImageSet> label="Images" value={imageSet} onChange={setImageSet} options={[{ value: 'people', label: 'People' }, { value: 'abstract', label: 'Abstract' }]} />
+        </Field>
+        <Field label="Draw a space">
+          <OnOff label="Draw a space" value={drawing} onChange={setDrawing} />
+        </Field>
+      </FieldGroup>
+      {spaces.map((sp, i) => (
+        <FieldGroup key={i} title={`Space ${i + 1}`}>
+          <Segmented label={`Space ${i + 1}`} value={sp.kind} onChange={k => updateSpace(i, { kind: k, image: k === 'image' ? sp.image ?? randomImage(imageSet) : sp.image })} options={[{ value: 'image', label: 'Image' }, { value: 'blank', label: 'Blank' }]} />
+          {sp.kind === 'blank' ? (
+            <RolePick label="Blank colour" colours={baseColours} value={sp.role} onChange={v => updateSpace(i, { role: v ?? 0 })} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => updateSpace(i, { image: randomImage(sp.image?.startsWith('s:') ? setOf(sp.image) : imageSet, sp.image) })}>New image</Button>
+                <Button variant="secondary" asChild>
+                  <label className="cursor-pointer">
+                    Your photo
+                    <input type="file" accept="image/*" className="sr-only" onChange={async e => {
+                      const f = e.target.files?.[0]
+                      e.target.value = ''
+                      if (f) updateSpace(i, { image: await addUpload(f) })
+                    }} />
+                  </label>
+                </Button>
+              </div>
+              {credit(sp.image) && <p className="text-xs text-muted-foreground">{credit(sp.image)}</p>}
+            </>
+          )}
+          <Button variant="ghost" className="justify-start px-0 text-muted-foreground" onClick={() => setSpaces(all => all.filter((_, j) => j !== i))}>Remove</Button>
+        </FieldGroup>
+      ))}
+    </>
+  )
+
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
       {GRID_LOOKS.map(l => (
         <Tile key={l.name} label={l.name} active={b.source === (l.spec as BlockMode).source && b.layout.repeat === (l.spec as BlockMode).layout.repeat && JSON.stringify(l.spec.palette) === JSON.stringify(spec.palette)}
-          onClick={() => setSpec(framedLook(l.spec))}>
+          onClick={() => setSpec(s => ({ ...framedLook(l.spec), spaces: s.spaces }))}>
           <PatternSvg pattern={build(framedLook(l.spec))} className="size-full" cover />
         </Tile>
       ))}
@@ -370,11 +478,12 @@ export default function App() {
       <main
         ref={stage}
         data-keep-panel
+        {...drawHandlers}
         className="fixed inset-0 grid touch-none select-none place-items-center p-3 transition-[right,bottom] duration-200 sm:p-16 sm:pb-24"
         // The pattern keeps clear of the menus and any open panel
         style={phone ? { bottom: panel ? `${PHONE_SHEET * 100}dvh` : `calc(${SAFE_BOTTOM} + 56px)`, top: 'calc(env(safe-area-inset-top, 0px) + 60px)' } : { right: panel ? PANEL_W : 0 }}
       >
-        <PatternSvg pattern={pattern} className={size ? undefined : 'size-full'} style={size} lines={lines} />
+        <PatternSvg pattern={pattern} className={size ? undefined : 'size-full'} style={size} lines={lines} cutouts={cutouts} />
       </main>
 
       <PanelRail panels={panels} open={panel} onToggle={id => setPanel(panel === id ? null : id)} phone={phone} />
@@ -382,6 +491,7 @@ export default function App() {
       <PanelSheet open={panel !== null} title={current?.label} onClose={() => setPanel(null)} phone={phone}>
         {panel === 'pattern' && patternPanel}
         {panel === 'colour' && colourPanel}
+        {panel === 'spaces' && spacesPanel}
         {panel === 'looks' && looksPanel}
         {panel === 'export' && exportPanel}
       </PanelSheet>
@@ -409,7 +519,7 @@ function groupByColour(svg: SVGSVGElement) {
   const under = new Map<string, string[]>(), over = new Map<string, string[]>()
   const whole = (...v: number[]) => v.every(n => Number.isInteger(n))
   for (const el of [...svg.querySelectorAll('rect[fill], polygon[fill], path[fill]')]) {
-    if (el.closest('clipPath, [data-overlay]')) continue
+    if (el.closest('clipPath, [data-overlay], [data-spaces]')) continue
     const fill = el.getAttribute('fill')!
     const n = (a: string) => +(el.getAttribute(a) ?? 0)
     let d = '', layer = over
@@ -426,6 +536,9 @@ function groupByColour(svg: SVGSVGElement) {
   }
   // Drop the groups that are now empty
   for (const g of [...svg.querySelectorAll('g')].reverse()) if (!g.children.length) g.remove()
+  // The colour layers go under the spaces (photos and type areas), which stay on top
+  const spaces = svg.querySelector('[data-spaces]')
+  if (spaces) spaces.id = 'spaces'
   for (const [name, layer] of [['squares', under], ['shapes', over]] as const) {
     if (!layer.size) continue
     const g = document.createElementNS(ns, 'g')
@@ -437,8 +550,22 @@ function groupByColour(svg: SVGSVGElement) {
       p.setAttribute('d', ds.join(''))
       g.append(p)
     }
-    svg.append(g)
+    if (spaces) spaces.before(g)
+    else svg.append(g)
   }
+}
+
+// A layout in miniature: the pattern lined, photos dark, type spaces white
+function LayoutIcon({ parts }: { parts: (typeof LAYOUTS)[number]['parts'] }) {
+  return (
+    <svg viewBox="0 0 1 1" className="size-full">
+      <rect width={1} height={1} fill="var(--muted)" />
+      <path d={Array.from({ length: 7 }, (_, i) => `M${(i + 1) / 8},0v1M0,${(i + 1) / 8}h1`).join('')} stroke="var(--border)" strokeWidth={0.01} />
+      {parts.map((p, i) => (
+        <rect key={i} x={p.x} y={p.y} width={p.w} height={p.h} fill={p.kind === 'image' ? 'var(--muted-foreground)' : 'var(--foreground)'} />
+      ))}
+    </svg>
+  )
 }
 
 // A palette as bands across

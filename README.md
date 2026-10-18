@@ -4,6 +4,7 @@ Quilt blocks on a grid, in random colours, after Waybill's swatches and the scra
 
 - **Pattern**: the block, blocks across, repeat (grid, mirror, twist, pinwheel, half drop, brick, step, lattice), swap alternate, gap with its colour and corner squares, format
 - **Colour**: random colours or a set, mix (how many blocks get their own colours), colour amount down to black and white
+- **Spaces**: give parts of the frame to a photo or to type (a flat colour): layouts after the Waybill posts and posters, or draw your own snapped to the grid; friendly studio portraits or abstract gradients from Unsplash, or your own photo
 - **Looks**: starting points
 - **Export**: PNG 2K or 4K, SVG, copy link
 

@@ -17,6 +17,8 @@ type Options = {
   offset: () => [number, number]
   slide: (x: number, y: number) => void
   cellPx: () => number
+  // Off while something else uses the pointer on the pattern (drawing a space)
+  enabled?: () => boolean
 }
 
 export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options) {
@@ -56,7 +58,7 @@ export function useStepZoom(el: RefObject<HTMLElement | null>, options: Options)
     }
 
     const down = (e: PointerEvent) => {
-      if (pointers.size >= 2) return
+      if (pointers.size >= 2 || opts.current.enabled?.() === false) return
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       node.setPointerCapture(e.pointerId)
       reset() // a second finger restarts from where the drag got to

@@ -112,7 +112,7 @@ export function quilt(seed: number, palette: PaletteSpec, keep: { aspect?: numbe
   return { ...s, scale: acrossToScale(s, across) }
 }
 
-export const shuffle = (s: Spec): Spec => quilt(newSeed(), s.palette, { aspect: s.aspect, tone: s.tone, mask: s.mask })
+export const shuffle = (s: Spec): Spec => ({ ...quilt(newSeed(), s.palette, { aspect: s.aspect, tone: s.tone, mask: s.mask }), spaces: s.spaces })
 
 // Same form, new colours
 // Recolouring a black and white pattern brings the colour in

@@ -76,7 +76,9 @@ function itemParts(it: Item, fill: (r: number) => string, key: string) {
 
 // lines: a light cell grid over the pattern, for editing (marked data-overlay so exports can drop it)
 // cover: fill the element, cropping a little if the shapes differ, for thumbnails
-export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, style, cover }: { pattern: Pattern; className?: string; lines?: boolean; style?: React.CSSProperties; cover?: boolean }) {
+// cutouts: spaces over the pattern in cells from the frame's corner, a photo (href) or flat colour (fill)
+export type Cutout = { x: number; y: number; w: number; h: number; fill?: string; href?: string }
+export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, style, cover, cutouts }: { pattern: Pattern; className?: string; lines?: boolean; style?: React.CSSProperties; cover?: boolean; cutouts?: Cutout[] }) {
   const { grid, colours } = pattern
   const id = useId()
   const H = grid.length, W = grid[0]?.length ?? 0
@@ -105,6 +107,16 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, 
   const mask = pattern.mask
   // The grid runs past the frame when it's scaled, and an SVG paints outside its viewBox
   // wherever the element is a different shape, so clip to the frame
+  const spaces = cutouts?.length ? (
+    <g data-spaces>
+      {cutouts.map((c, i) => {
+        const x = v.x + c.x, y = v.y + c.y
+        return c.href
+          ? <image key={i} href={c.href} x={x} y={y} width={c.w} height={c.h} preserveAspectRatio="xMidYMid slice" />
+          : <rect key={i} x={x} y={y} width={c.w} height={c.h} fill={c.fill ?? '#7f7f7f'} />
+      })}
+    </g>
+  ) : null
   const overlay = lines && (
     // A light grid: thin white lines, faint enough to sit over any colour
     <g data-overlay stroke="rgb(255 255 255 / 0.35)" strokeWidth={1} vectorEffect="non-scaling-stroke" fill="none">
@@ -121,7 +133,7 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, 
       <svg viewBox={box} className={className} style={style} shapeRendering="crispEdges" preserveAspectRatio={cover ? 'xMidYMid slice' : 'xMidYMid meet'}>
         {/* Sized to the frame's shape, the svg's own edge crops the spare tiles; a clip path here
             leaves a sliver of page along an edge, so the frame clip is only for other sizes */}
-        {style ? <g>{parts}{overlay}</g> : <><defs>{frame}</defs><g clipPath={`url(#${id}f)`}>{parts}{overlay}</g></>}
+        {style ? <g>{parts}{spaces}{overlay}</g> : <><defs>{frame}</defs><g clipPath={`url(#${id}f)`}>{parts}{spaces}{overlay}</g></>}
       </svg>
     )
   }
