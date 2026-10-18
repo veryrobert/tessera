@@ -75,7 +75,7 @@ function itemParts(it: Item, fill: (r: number) => string, key: string) {
 }
 
 // lines: a light cell grid over the pattern, for editing (marked data-overlay so exports can drop it)
-export const PatternSvg = memo(function PatternSvg({ pattern, className, lines }: { pattern: Pattern; className?: string; lines?: boolean }) {
+export const PatternSvg = memo(function PatternSvg({ pattern, className, lines, style }: { pattern: Pattern; className?: string; lines?: boolean; style?: React.CSSProperties }) {
   const { grid, colours } = pattern
   const id = useId()
   const H = grid.length, W = grid[0]?.length ?? 0
@@ -113,10 +113,11 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className, lines }
       ].join('')} />
     </g>
   )
-  const frame = <clipPath id={id + 'f'}><rect x={v.x} y={v.y} width={v.w} height={v.h} /></clipPath>
+  // Snapped to pixels like the cells (crispEdges), or a sliver of page shows along an edge
+  const frame = <clipPath id={id + 'f'}><rect x={v.x} y={v.y} width={v.w} height={v.h} shapeRendering="crispEdges" /></clipPath>
   if (!mask) {
     return (
-      <svg viewBox={box} className={className} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={box} className={className} style={style} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
         <defs>{frame}</defs>
         <g clipPath={`url(#${id}f)`}>{parts}{overlay}</g>
       </svg>

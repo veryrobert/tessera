@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Eye, Grid2x2, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, Eye, Grid2x2, Grid3x3, Palette, Shuffle, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -52,10 +52,37 @@ export default function App() {
   const [spec, setSpecRaw] = useState<Spec>(fromHash)
   const past = useRef<Spec[]>([])
   const [note, setNote] = useState('')
+  // The light grid over the pattern, on by default; the choice is remembered on this device
+  const [lines, setLines] = useState(() => { try { return localStorage.getItem('kaleidoscope:lines') !== 'off' } catch { return true } })
+  useEffect(() => { try { localStorage.setItem('kaleidoscope:lines', lines ? 'on' : 'off') } catch { /* storage unavailable */ } }, [lines])
   const stage = useRef<HTMLElement>(null)
   const current = panels.find(p => p.id === panel)
 
   const pattern = useMemo(() => build(spec), [spec])
+
+  // The space the pattern has, so it can be drawn at a whole number of pixels per cell:
+  // every edge then lands on a pixel, with no slivers or seams
+  const [room, setRoom] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const measure = () => {
+      const cs = getComputedStyle(el)
+      setRoom({ w: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h: el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const view = pattern.view ?? { w: pattern.grid[0].length, h: pattern.grid.length }
+  const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1
+  const cellPx = Math.max(1, Math.floor(Math.min(room.w / view.w, room.h / view.h) * dpr)) / dpr
+  // Centred by hand on whole device pixels (a grid's centring can land on a half pixel)
+  const snap = (v: number) => Math.round(v * dpr) / dpr
+  const size = room.w
+    ? { width: cellPx * view.w, height: cellPx * view.h, placeSelf: 'start', marginLeft: snap((room.w - cellPx * view.w) / 2), marginTop: snap((room.h - cellPx * view.h) / 2) }
+    : undefined
 
   // Every change goes through here, so it can be undone and lands in the URL
   const setSpec = (next: Spec | ((s: Spec) => Spec)) => setSpecRaw(s => {
@@ -75,13 +102,14 @@ export default function App() {
     return () => clearTimeout(t)
   }, [note])
 
-  // Keys: space shuffles, c recolours, cmd/ctrl+z undoes
+  // Keys: space shuffles, c recolours, g shows or hides the grid, cmd/ctrl+z undoes
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (e.target instanceof Element && e.target.closest('input, textarea, [role=slider]')) return
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo() }
       else if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); setSpec(shuffle) }
       else if (e.key === 'c' && !e.metaKey && !e.ctrlKey) setSpec(recolour)
+      else if (e.key === 'g' && !e.metaKey && !e.ctrlKey) setLines(v => !v)
     }
     window.addEventListener('keydown', on)
     return () => window.removeEventListener('keydown', on)
@@ -106,6 +134,8 @@ export default function App() {
   // The gesture is one undo step: it checkpoints once, then steps without adding history.
   const latest = useRef(spec)
   latest.current = spec
+  const cellRef = useRef(20)
+  cellRef.current = cellPx
   useStepZoom(stage, {
     value: () => scaleToAcross(asBlock(latest.current)),
     set: n => setSpecRaw(s => keepAcross(s, asBlock(s), n)),
@@ -114,10 +144,7 @@ export default function App() {
     max: 16,
     offset: () => latest.current.offset ?? [0, 0],
     slide: (x, y) => setSpecRaw(s => ({ ...s, offset: [x, y] })),
-    cellPx: () => {
-      const el = stage.current?.querySelector('svg'), v = build(latest.current).view
-      return el && v ? Math.min(el.clientWidth / v.w, el.clientHeight / v.h) : 20
-    },
+    cellPx: () => cellRef.current,
   })
 
   // ---------- Export ----------
@@ -276,7 +303,7 @@ export default function App() {
         // The pattern keeps clear of the menus and any open panel
         style={phone ? { bottom: panel ? `${PHONE_SHEET * 100}dvh` : `calc(${SAFE_BOTTOM} + 56px)`, top: 'calc(env(safe-area-inset-top, 0px) + 60px)' } : { right: panel ? PANEL_W : 0 }}
       >
-        <PatternSvg pattern={pattern} className="size-full" lines />
+        <PatternSvg pattern={pattern} className={size ? undefined : 'size-full'} style={size} lines={lines} />
       </main>
 
       <PanelRail panels={panels} open={panel} onToggle={id => setPanel(panel === id ? null : id)} phone={phone} />
@@ -295,6 +322,7 @@ export default function App() {
           <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(s => coloured(recolour(s)))} />
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
           <ToolbarSeparator />
+          <ToolButton icon={Grid3x3} label={lines ? 'Hide grid' : 'Show grid'} side="top" active={lines} onClick={() => setLines(v => !v)} />
           <ToolButton icon={Download} label="Download PNG" side="top" onClick={() => exportPng(4096)} />
         </Toolbar>
       </ActionDock>
