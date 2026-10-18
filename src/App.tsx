@@ -358,8 +358,8 @@ export default function App() {
   )
 
   // Build: a few sliders that add complexity. Split, depth and shapes generate a block.
-  // Scale: 0 is fine (64 cells across the frame), 1 is one big cell; even steps feel even (log)
-  const MIN = 1.5, MAX = 64
+  // Scale: 0 is fine (160 cells across the frame), 1 is one big cell; even steps feel even (log)
+  const MIN = 1.5, MAX = 160
   const cellsAcross = spec.scale ?? (pattern.view?.w ?? pattern.grid[0].length)
   const zoom = Math.log(MAX / cellsAcross) / Math.log(MAX / MIN)
   const setZoom = (z: number) => setSpec(s => ({ ...s, scale: MAX * (MIN / MAX) ** z, aspect: s.aspect ?? pattern.grid.length / pattern.grid[0].length }))
