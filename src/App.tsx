@@ -4,7 +4,7 @@ import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToolButton } from '@/components/shell/ToolButton'
-import { Toolbar, ToolbarSeparator } from '@/components/shell/Toolbar'
+import { Toolbar } from '@/components/shell/Toolbar'
 import { OnOff, Segmented } from '@/components/shell/Segmented'
 import { Field, FieldGroup } from '@/components/shell/Field'
 import { Splash } from '@/components/shell/Splash'
@@ -563,8 +563,6 @@ export default function App() {
           <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(s => coloured(recolour(s)))} />
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
           <ToolButton icon={Bookmark} label="Save" side="top" onClick={savePattern} />
-          <ToolbarSeparator />
-          <ToolButton icon={Download} label="Download PNG" side="top" onClick={exportPng} />
         </Toolbar>
       </ActionDock>
     </TooltipProvider>
