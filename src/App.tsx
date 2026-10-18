@@ -37,8 +37,8 @@ const panels = [
   ...(SPACES ? [{ id: 'spaces', label: 'Spaces', icon: ImagePlus } as const] : []),
   { id: 'looks', label: 'Looks', icon: Eye },
   { id: 'library', label: 'Library', icon: Library },
-  { id: 'export', label: 'Export', icon: Download },
   { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
+  { id: 'export', label: 'Export', icon: Download }, // last, as in the other apps
 ] as const
 type PanelId = (typeof panels)[number]['id']
 
@@ -431,7 +431,7 @@ export default function App() {
     const x = newSaved(name, spec)
     setSaved(all => [x, ...all])
     putSaved(x)
-    setNote('Saved to Library')
+    setNote('Added to Library')
   }
   const renameSaved = (x: Saved, name: string) => { const y = { ...x, name }; setSaved(all => all.map(z => (z.id === x.id ? y : z))); putSaved(y) }
   const removeSaved = (x: Saved) => { setSaved(all => all.filter(z => z.id !== x.id)); deleteSaved(x.id) }
@@ -507,18 +507,18 @@ export default function App() {
           <Segmented label="Size" value={svgSize} onChange={setSvgSize} options={[{ value: 'large', label: 'Large' }, { value: 'pixel', label: 'Pixel' }]} />
         </Field>
       </FieldGroup>
-      <FieldGroup title="Save">
+      <FieldGroup>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={exportPng}>PNG</Button>
-          <Button variant="secondary" onClick={exportSvg}>SVG</Button>
+          <Button variant="secondary" onClick={exportPng}>Save PNG</Button>
+          <Button variant="secondary" onClick={exportSvg}>Save SVG</Button>
         </div>
       </FieldGroup>
-      <FieldGroup title="Copy">
+      <FieldGroup>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={copyPng}>PNG</Button>
-          <Button variant="secondary" onClick={copySvg}>SVG</Button>
-          <Button variant="secondary" onClick={copyColours}>Colours</Button>
-          <Button variant="secondary" onClick={copyLink}>Link</Button>
+          <Button variant="secondary" onClick={copyPng}>Copy PNG</Button>
+          <Button variant="secondary" onClick={copySvg}>Copy SVG</Button>
+          <Button variant="secondary" onClick={copyColours}>Copy colours</Button>
+          <Button variant="secondary" onClick={copyLink}>Copy link</Button>
         </div>
       </FieldGroup>
     </>
@@ -562,7 +562,7 @@ export default function App() {
           <ToolButton icon={Shuffle} label="Shuffle" side="top" onClick={() => setSpec(shuffle)} />
           <ToolButton icon={Wand2} label="Recolour" side="top" onClick={() => setSpec(s => coloured(recolour(s)))} />
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
-          <ToolButton icon={Bookmark} label="Save" side="top" onClick={savePattern} />
+          <ToolButton icon={Bookmark} label="Add to Library" side="top" onClick={savePattern} />
         </Toolbar>
       </ActionDock>
     </TooltipProvider>
