@@ -93,7 +93,11 @@ export function shuffle(s: Spec): Spec {
   if (k < 0.12) {
     return { mode: 'field', seed, ...keep, scale: int(r, 12, 36), field: { kind: pick(r, ['camo', 'patches', 'streaks'] as const), cols: 40, rows: 40, scale: int(r, 3, 10) } }
   }
-  if (k < 0.27) {
+  if (k < 0.32) {
+    const style = pick(r, ['bricks', 'strips', 'stripes'] as const)
+    return { mode: 'compose', seed, ...keep, scale: int(r, 8, 16), compose: { style, cols: 16, rows: 16, size: style === 'stripes' ? pick(r, [3, 4]) : pick(r, [1, 2, 2, 3]) } }
+  }
+  if (k < 0.42) {
     return { mode: 'plaid', seed, ...keep, scale: int(r, 16, 44), plaid: { sett: null, mirror: r() < 0.6, weave: pick(r, ['plain', 'twill', 'over', 'under'] as const), cols: 48, rows: 48 } }
   }
   const generate = r() < 0.55

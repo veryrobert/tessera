@@ -1,5 +1,5 @@
 import { memo, useId } from 'react'
-import type { Cell, Corner, Pattern, Side } from '@/lib/pattern'
+import type { Cell, Corner, Item, Pattern, Side } from '@/lib/pattern'
 
 // Draws a pattern as SVG in cell units: one cell is 1×1 in the viewBox.
 // Runs of identical full cells in a row are merged, so large plaids stay light.
@@ -49,6 +49,31 @@ function shapeParts(c: Cell, x: number, y: number, fill: (r: number) => string, 
   }
 }
 
+// A composed shape: a rect, or a circle or dome cut from one, filled flat or with stripes
+function itemParts(it: Item, fill: (r: number) => string, key: string) {
+  const { x, y, w, h } = it
+  const body = it.stripes
+    ? (() => {
+        const n = it.stripes.count * 2, v = it.stripes.dir === 'v', step = (v ? w : h) / n
+        return [<rect key="b" x={x} y={y} width={w} height={h} fill={fill(it.stripes.alt)} />,
+          ...Array.from({ length: it.stripes.count }, (_, k) => v
+            ? <rect key={k} x={x + 2 * k * step} y={y} width={step} height={h} fill={fill(it.role)} />
+            : <rect key={k} x={x} y={y + 2 * k * step} width={w} height={step} fill={fill(it.role)} />)]
+      })()
+    : [<rect key="b" x={x} y={y} width={w} height={h} fill={fill(it.role)} />]
+  if (it.kind === 'rect') return <g key={key}>{body}</g>
+  const rad = Math.min(w, h) / 2, cx = x + w / 2
+  const outline = it.kind === 'circle'
+    ? <circle cx={cx} cy={y + h / 2} r={rad} />
+    : <path d={`M${x},${y + h}V${y + rad}A${rad},${rad} 0 0 1 ${x + w},${y + rad}V${y + h}Z`} />
+  return (
+    <g key={key}>
+      <clipPath id={key}>{outline}</clipPath>
+      <g clipPath={`url(#${key})`}>{body}</g>
+    </g>
+  )
+}
+
 export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pattern: Pattern; className?: string }) {
   const { grid, colours } = pattern
   const id = useId()
@@ -72,6 +97,7 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pat
     }
   })
 
+  pattern.items?.forEach((it, i) => parts.push(itemParts(it, fill, `${id}i${i}`)))
   const v = pattern.view ?? { x: 0, y: 0, w: W, h: H }
   const box = `${v.x} ${v.y} ${v.w} ${v.h}`
   const mask = pattern.mask

@@ -3,6 +3,7 @@ import { type LayoutSpec, tile } from './layout'
 import { type PaletteSpec, makePalette } from './palette'
 import { type PlaidSpec, plaid, randomSett } from './plaid'
 import { type FieldSpec, field } from './field'
+import { type ComposeSpec, type Item, compose } from './compose'
 import { fork } from './random'
 import type { Grid } from './types'
 
@@ -12,6 +13,7 @@ export * from './palette'
 export * from './plaid'
 export * from './layout'
 export * from './field'
+export * from './compose'
 export { hooked } from './guard'
 export { rng, fork } from './random'
 
@@ -26,13 +28,15 @@ export type Spec = Common & (
   | { mode: 'block'; source: LibraryName | 'generate'; block: BlockSpec; layout: LayoutSpec }
   | { mode: 'plaid'; plaid: Omit<PlaidSpec, 'sett'> & { sett: PlaidSpec['sett'] | null } }
   | { mode: 'field'; field: FieldSpec }
+  | { mode: 'compose'; compose: ComposeSpec }
 )
 
-export type Pattern = { grid: Grid; colours: string[]; mask?: Mask; view?: { x: number; y: number; w: number; h: number } }
+export type Pattern = { grid: Grid; colours: string[]; mask?: Mask; items?: Item[]; view?: { x: number; y: number; w: number; h: number } }
 
 export function build(spec: Spec): Pattern {
   const p = framed(spec)
   const used = new Set(p.grid.flat().flatMap(c => (c.alt === undefined ? [c.role] : [c.role, c.alt])))
+  for (const it of p.items ?? []) { used.add(it.role); if (it.stripes) used.add(it.stripes.alt) }
   if (p.mask) used.add(p.mask.role)
   return { ...p, colours: toned(p.colours, spec.tone ?? 1, used) }
 }
@@ -49,6 +53,7 @@ function framed(spec: Spec): Pattern {
     const sash = spec.layout.sashing
     s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / (bw + sash)) + 1, rows: Math.ceil(H / (bh + sash)) + 1 } }
   } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }
+  else if (spec.mode === 'compose') s = { ...spec, compose: { ...spec.compose, cols: W, rows: H } }
   else s = { ...spec, field: { ...spec.field, cols: W, rows: H } }
   const p = buildColour(s)
   const gw = p.grid[0].length, gh = p.grid.length
@@ -63,6 +68,11 @@ function buildColour(spec: Spec): Pattern {
     return { grid: plaid({ ...spec.plaid, sett }), colours, mask }
   }
   if (spec.mode === 'field') return { grid: field(spec.seed, spec.field, colours.length), colours, mask }
+  if (spec.mode === 'compose') {
+    const { cols, rows } = spec.compose
+    const grid: Grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ role: 0 })))
+    return { grid, colours, mask, items: compose(spec.seed, spec.compose, colours.length) }
+  }
   const block = spec.source === 'generate' ? generateBlock(fork(spec.seed, 5), spec.block) : library[spec.source]
   // Mixed: each tile takes its own palette (same scheme, new hues), ground shared, as in a scrap quilt
   const mix = spec.layout.palettes ?? 1

@@ -15,7 +15,7 @@ import { PANEL_W, PHONE_SHEET, SAFE_BOTTOM, usePhone } from '@/components/shell/
 import { Choices, Tile, Tiles } from '@/components/Choices'
 import { PatternSvg, svgString } from '@/components/pattern/PatternSvg'
 import {
-  type Cycle, type FieldKind, type Ground, type LayoutSpec, type Mask, type PaletteSpec, type Scheme, type ShapeMix, type Spec,
+  type ComposeStyle, type Cycle, type FieldKind, type Ground, type LayoutSpec, type Mask, type PaletteSpec, type Scheme, type ShapeMix, type Spec,
   build, decode, defaultSpec, encode, makePalette, presets, rng,
 } from '@/lib/pattern'
 import { LIBRARY, PRESETS, REPEATS, SYMMETRIES, blockDefaults, newSeed, randomBlock, randomPalette, recolour, shuffle } from '@/state'
@@ -38,6 +38,7 @@ type PanelId = (typeof panels)[number]['id']
 type BlockMode = Extract<Spec, { mode: 'block' }>
 type PlaidMode = Extract<Spec, { mode: 'plaid' }>
 type FieldMode = Extract<Spec, { mode: 'field' }>
+type ComposeMode = Extract<Spec, { mode: 'compose' }>
 
 // Opens in black and white on a plain generated block; the Build sliders add from there
 const startSpec: Spec = {
@@ -116,6 +117,8 @@ export default function App() {
   const setPalette = (p: Partial<PaletteSpec>) => setSpec(s => coloured({ ...s, palette: { ...s.palette, ...p } } as Spec))
   const setField = (p: Partial<FieldMode['field']>) => setSpec(s => (s.mode === 'field' ? { ...s, field: { ...s.field, ...p } } : s))
   const toField = () => setSpec(s => (s.mode === 'field' ? s : { mode: 'field', seed: s.seed, palette: s.palette, mask: s.mask, field: { kind: 'camo', cols: 40, rows: 50, scale: 10 } }))
+  const setCompose = (p: Partial<ComposeMode['compose']>) => setSpec(s => (s.mode === 'compose' ? { ...s, compose: { ...s.compose, ...p } } : s))
+  const toCompose = () => setSpec(s => (s.mode === 'compose' ? s : { mode: 'compose', seed: s.seed, palette: s.palette, mask: s.mask, tone: s.tone, scale: s.scale ?? 16, aspect: s.aspect, compose: { style: 'bricks', cols: 16, rows: 16, size: 2 } }))
   const mask: Mask = spec.mask ?? { shape: 'none', role: 0, inset: 0.1 }
   const setMask = (p: Partial<Mask>) => setSpec(s => ({ ...s, mask: { ...mask, ...p } }))
   const toPlaid = () => setSpec(s => (s.mode === 'plaid' ? s : { mode: 'plaid', seed: s.seed, palette: s.palette, plaid: { sett: null, mirror: true, weave: 'twill', cols: 48, rows: 48 } }))
@@ -168,7 +171,7 @@ export default function App() {
     <>
       <FieldGroup>
         <Field label="Kind">
-          <Segmented label="Kind" value={spec.mode} onChange={m => (m === 'plaid' ? toPlaid() : m === 'field' ? toField() : setSpec(asBlock))} options={[{ value: 'block', label: 'Blocks' }, { value: 'plaid', label: 'Plaid' }, { value: 'field', label: 'Field' }]} />
+          <Segmented label="Kind" value={spec.mode} onChange={m => (m === 'plaid' ? toPlaid() : m === 'field' ? toField() : m === 'compose' ? toCompose() : setSpec(asBlock))} options={[{ value: 'block', label: 'Blocks' }, { value: 'compose', label: 'Compose' }, { value: 'plaid', label: 'Plaid' }, { value: 'field', label: 'Field' }]} />
         </Field>
       </FieldGroup>
       {b && (
@@ -208,6 +211,17 @@ export default function App() {
             </Field>
           ))}
           <Button variant="secondary" onClick={() => setSpec(s => ({ ...asBlock(s), seed: newSeed() }))}>New block</Button>
+        </FieldGroup>
+      )}
+      {spec.mode === 'compose' && (
+        <FieldGroup title="Compose">
+          <Field label="Style">
+            <Segmented<ComposeStyle> label="Style" value={spec.compose.style} onChange={v => setCompose({ style: v })} options={[{ value: 'bricks', label: 'Bricks' }, { value: 'strips', label: 'Strips' }, { value: 'stripes', label: 'Stripes' }]} />
+          </Field>
+          <Field label="Size">
+            <Slider min={1} max={8} step={1} value={[spec.compose.size]} onValueChange={([v]) => setCompose({ size: v })} aria-label="Piece size" />
+          </Field>
+          <Button variant="secondary" onClick={() => setSpec(s => ({ ...s, seed: newSeed() }))}>New layout</Button>
         </FieldGroup>
       )}
       {spec.mode === 'field' && (
