@@ -153,14 +153,16 @@ export default function App() {
 
   // ---------- Export ----------
   // The pattern as it exports: without the editing grid
-  const svgEl = () => {
+  // SVG size: Large is 2048px on the long side; Pixel is one pixel per cell
+  const [svgSize, setSvgSize] = useState<'large' | 'pixel'>('large')
+  const svgEl = (size: 'large' | 'pixel' = 'large') => {
     const el = stage.current?.querySelector('svg')
     if (!el) return null
     const clone = el.cloneNode(true) as SVGSVGElement
     clone.querySelectorAll('[data-overlay]').forEach(n => n.remove())
-    // A real size (2048px on the long side) instead of the on-screen layout, or apps read the
-    // viewBox's cell units as pixels and open it tiny
-    const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length, k = 2048 / Math.max(W, H)
+    // A real size instead of the on-screen layout: 2048px on the long side, or a pixel per cell
+    const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length
+    const k = size === 'pixel' ? 1 : 2048 / Math.max(W, H)
     clone.removeAttribute('style')
     clone.removeAttribute('class')
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -186,46 +188,47 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
   const exportSvg = () => {
-    const el = svgEl()
+    const el = svgEl(svgSize)
     if (el) save(new Blob([svgString(el)], { type: 'image/svg+xml' }), 'tessera.svg')
   }
   // As text, which Figma and code editors take as a paste
-  const copySvg = async () => {
-    const el = svgEl()
-    if (!el) return
-    try {
-      await navigator.clipboard.writeText(svgString(el))
-      setNote('SVG copied')
-    } catch {
-      setNote('Couldn’t copy the SVG')
-    }
-  }
-  const exportPng = async (long: number) => {
-    const el = svgEl()
-    if (!el) return
-    const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length
-    const k = long / Math.max(W, H), w = Math.round(W * k), h = Math.round(H * k)
-    const clone = el
-    clone.setAttribute('width', String(w))
-    clone.setAttribute('height', String(h))
+  const copySvg = () => copied('SVG', () => navigator.clipboard.writeText(svgString(svgEl(svgSize)!)))
+  // PNG at the chosen size: Large is 4096px on the long side, Pixel a pixel per cell
+  const renderPng = async (): Promise<Blob> => {
+    const el = svgEl(svgSize)!
+    const w = +el.getAttribute('width')!, h = +el.getAttribute('height')!
+    const k = svgSize === 'pixel' ? 1 : 2, W = w * k, H = h * k
+    el.setAttribute('width', String(W))
+    el.setAttribute('height', String(H))
     const img = new Image()
-    img.src = URL.createObjectURL(new Blob([svgString(clone)], { type: 'image/svg+xml' }))
+    img.src = URL.createObjectURL(new Blob([svgString(el)], { type: 'image/svg+xml' }))
     await img.decode()
     const c = document.createElement('canvas')
-    c.width = w
-    c.height = h
-    c.getContext('2d')!.drawImage(img, 0, 0, w, h)
+    c.width = W
+    c.height = H
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    g.drawImage(img, 0, 0, W, H)
     URL.revokeObjectURL(img.src)
-    c.toBlob(blob => blob && save(blob, 'tessera.png'), 'image/png')
+    return new Promise((ok, fail) => c.toBlob(b => (b ? ok(b) : fail(new Error('no image'))), 'image/png'))
   }
-  const copyLink = async () => {
+  const exportPng = async () => save(await renderPng(), 'tessera.png')
+  const copied = async (what: string, run: () => Promise<void>) => {
     try {
-      await navigator.clipboard.writeText(location.href)
-      setNote('Link copied')
+      await run()
+      setNote(`${what} copied`)
     } catch {
-      setNote('Couldn’t copy the link')
+      setNote(`Couldn’t copy the ${what.toLowerCase()}`)
     }
   }
+  // The image itself, to paste into Figma, Slack or Keynote (the promise keeps Safari's gesture)
+  const copyPng = () => copied('PNG', () => navigator.clipboard.write([new ClipboardItem({ 'image/png': renderPng() })]))
+  // The colours actually in the image, as hex, one per line
+  const copyColours = () => copied('Colours', () => {
+    const fills = [...(svgEl()?.querySelectorAll('[fill]') ?? [])].map(e => e.getAttribute('fill')!).filter(f => f.startsWith('#'))
+    return navigator.clipboard.writeText([...new Set(fills)].join('\n'))
+  })
+  const copyLink = () => copied('Link', () => navigator.clipboard.writeText(location.href))
 
   // ---------- Panels ----------
   // Pattern: the block, how many fit, how they repeat, the gaps between, the frame
@@ -331,13 +334,27 @@ export default function App() {
   )
 
   const exportPanel = (
-    <FieldGroup>
-      <Button variant="secondary" onClick={() => exportPng(2048)}>PNG 2K</Button>
-      <Button variant="secondary" onClick={() => exportPng(4096)}>PNG 4K</Button>
-      <Button variant="secondary" onClick={exportSvg}>SVG</Button>
-      <Button variant="secondary" onClick={copySvg}>Copy SVG</Button>
-      <Button variant="secondary" onClick={copyLink}>Copy link</Button>
-    </FieldGroup>
+    <>
+      <FieldGroup>
+        <Field label="Size">
+          <Segmented label="Size" value={svgSize} onChange={setSvgSize} options={[{ value: 'large', label: 'Large' }, { value: 'pixel', label: 'Pixel' }]} />
+        </Field>
+      </FieldGroup>
+      <FieldGroup title="Save">
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={exportPng}>PNG</Button>
+          <Button variant="secondary" onClick={exportSvg}>SVG</Button>
+        </div>
+      </FieldGroup>
+      <FieldGroup title="Copy">
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={copyPng}>PNG</Button>
+          <Button variant="secondary" onClick={copySvg}>SVG</Button>
+          <Button variant="secondary" onClick={copyColours}>Colours</Button>
+          <Button variant="secondary" onClick={copyLink}>Link</Button>
+        </div>
+      </FieldGroup>
+    </>
   )
 
   return (
@@ -376,7 +393,7 @@ export default function App() {
           <ToolButton icon={Undo2} label="Undo" side="top" onClick={undo} />
           <ToolbarSeparator />
           <ToolButton icon={Grid3x3} label={lines ? 'Hide grid' : 'Show grid'} side="top" active={lines} onClick={() => setLines(v => !v)} />
-          <ToolButton icon={Download} label="Download PNG" side="top" onClick={() => exportPng(4096)} />
+          <ToolButton icon={Download} label="Download PNG" side="top" onClick={exportPng} />
         </Toolbar>
       </ActionDock>
     </TooltipProvider>
