@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Download, Grid2x2, LayoutGrid, LayoutTemplate, Link, Palette, Shuffle, Sparkles, Undo2, Wand2 } from 'lucide-react'
+import { Ban, Download, SlidersHorizontal, Grid2x2, LayoutGrid, LayoutTemplate, Link, Palette, Shuffle, Sparkles, Undo2, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -26,6 +26,7 @@ import { looks } from '@/looks'
 // so any look can be shared or bookmarked.
 
 const panels = [
+  { id: 'build', label: 'Build', icon: SlidersHorizontal },
   { id: 'looks', label: 'Looks', icon: LayoutTemplate },
   { id: 'pattern', label: 'Pattern', icon: Grid2x2 },
   { id: 'layout', label: 'Layout', icon: LayoutGrid },
@@ -38,12 +39,20 @@ type BlockMode = Extract<Spec, { mode: 'block' }>
 type PlaidMode = Extract<Spec, { mode: 'plaid' }>
 type FieldMode = Extract<Spec, { mode: 'field' }>
 
-const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? defaultSpec
+// Opens in black and white on a plain generated block; the Build sliders add from there
+const startSpec: Spec = {
+  ...(defaultSpec as Extract<Spec, { mode: 'block' }>),
+  source: 'generate', seed: 3, tone: 0, scale: 20, aspect: 1,
+  block: { size: 5, symmetry: 'full', roles: 2, density: 0.4, shapes: { tri: 0.3, quarter: 0.12, half: 0.12, split: 0.18, bars: 0.09 } },
+  layout: { ...defaultSpec.mode === 'block' ? defaultSpec.layout : ({} as LayoutSpec), cols: 4, rows: 4, repeat: 'mirror' },
+  palette: { seed: 3, hue: null, scheme: 'complement', ground: 'light', count: 5, preset: undefined },
+}
+const fromHash = () => (location.hash.length > 1 ? decode(location.hash) : null) ?? startSpec
 const SHAPE_LABELS = { tri: 'Triangles', split: 'Halves', quarter: 'Quarter circles', half: 'Half circles', bars: 'Stripes' } as const
 
 export default function App() {
-  const [panel, setPanel] = useState<PanelId | null>(null)
   const phone = usePhone()
+  const [panel, setPanel] = useState<PanelId | null>(() => (matchMedia('(max-width: 639px)').matches ? null : 'build'))
   const [spec, setSpecRaw] = useState<Spec>(fromHash)
   const past = useRef<Spec[]>([])
   const [note, setNote] = useState('')
@@ -112,7 +121,7 @@ export default function App() {
   const exportPng = async (long: number) => {
     const el = svgEl()
     if (!el) return
-    const W = pattern.grid[0].length, H = pattern.grid.length
+    const W = pattern.view?.w ?? pattern.grid[0].length, H = pattern.view?.h ?? pattern.grid.length
     const k = long / Math.max(W, H), w = Math.round(W * k), h = Math.round(H * k)
     const clone = el.cloneNode(true) as SVGSVGElement
     clone.setAttribute('width', String(w))
@@ -325,11 +334,48 @@ export default function App() {
     </>
   )
 
+  // Build: a few sliders that add complexity. Split, depth and shapes generate a block.
+  // Scale: 0 is fine (160 cells across the frame), 1 is one big cell; even steps feel even (log)
+  const MIN = 1.5, MAX = 160
+  const cellsAcross = spec.scale ?? (pattern.view?.w ?? pattern.grid[0].length)
+  const zoom = Math.log(MAX / cellsAcross) / Math.log(MAX / MIN)
+  const setZoom = (z: number) => setSpec(s => ({ ...s, scale: MAX * (MIN / MAX) ** z, aspect: s.aspect ?? pattern.grid.length / pattern.grid[0].length }))
+  const formats = [{ value: '1', label: '1:1' }, { value: '1.25', label: '4:5' }, { value: '1.7778', label: '9:16' }, { value: '0.5625', label: '16:9' }]
+  const aspect = String(spec.aspect ?? 1)
+  const setDepth = (v: number) => setSpec(s => {
+    const blk = asBlock(s)
+    const count = blk.palette.preset ? blk.palette.count : Math.max(blk.palette.count, v)
+    return { ...blk, source: 'generate', block: { ...blk.block, roles: v }, palette: { ...blk.palette, count } }
+  })
+  const setAmount = (v: number) => setShapes({ tri: v, split: v * 0.6, quarter: v * 0.4, half: v * 0.4, bars: v * 0.3 })
+  const buildPanel = (
+    <FieldGroup>
+      <Field label="Scale">
+        <Slider min={0} max={1} step={0.005} value={[Math.max(0, Math.min(1, zoom))]} onValueChange={([v]) => setZoom(v)} aria-label="Scale" />
+      </Field>
+      <Field label="Format">
+        <Segmented label="Format" value={formats.some(f => f.value === aspect) ? aspect : '1'} onChange={v => setSpec(s => ({ ...s, aspect: +v, scale: s.scale ?? cellsAcross }))} options={formats} />
+      </Field>
+      <Field label="Split">
+        <Slider min={2} max={8} step={1} value={[b?.block.size ?? 4]} onValueChange={([v]) => setBlock({ size: v })} aria-label="Split" />
+      </Field>
+      <Field label="Depth">
+        <Slider min={2} max={6} step={1} value={[b?.block.roles ?? 2]} onValueChange={([v]) => setDepth(v)} aria-label="Depth" />
+      </Field>
+      <Field label="Shapes">
+        <Slider min={0} max={1.5} step={0.05} value={[b?.block.shapes.tri ?? 0]} onValueChange={([v]) => setAmount(v)} aria-label="Shapes" />
+      </Field>
+      <Field label="Colour">
+        <Slider min={0} max={1} step={0.01} value={[spec.tone ?? 1]} onValueChange={([v]) => setSpec(s => ({ ...s, tone: v }))} aria-label="Colour" />
+      </Field>
+    </FieldGroup>
+  )
+
   const looksPanel = (
     <Tiles label="Looks" cols={3}>
       {looks.map(l => (
-        <Tile key={l.name} label={l.name} active={encode(l.spec) === encode(spec)} onClick={() => setSpec(l.spec)}>
-          <PatternSvg pattern={build(l.spec)} className="size-full" />
+        <Tile key={l.name} label={l.name} active={encode({ ...l.spec, tone: spec.tone }) === encode(spec)} onClick={() => setSpec({ ...l.spec, tone: 0 })}>
+          <PatternSvg pattern={build({ ...l.spec, tone: 0 })} className="size-full" />
         </Tile>
       ))}
     </Tiles>
@@ -365,6 +411,7 @@ export default function App() {
       <PanelRail panels={panels} open={panel} onToggle={id => setPanel(panel === id ? null : id)} phone={phone} />
 
       <PanelSheet open={panel !== null} title={current?.label} onClose={() => setPanel(null)} phone={phone}>
+        {panel === 'build' && buildPanel}
         {panel === 'looks' && looksPanel}
         {panel === 'pattern' && patternPanel}
         {panel === 'layout' && layoutPanel}

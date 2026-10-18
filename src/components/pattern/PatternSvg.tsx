@@ -72,16 +72,22 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pat
     }
   })
 
+  const v = pattern.view ?? { x: 0, y: 0, w: W, h: H }
+  const box = `${v.x} ${v.y} ${v.w} ${v.h}`
   const mask = pattern.mask
+  // The grid runs past the frame when it's scaled, and an SVG paints outside its viewBox
+  // wherever the element is a different shape, so clip to the frame
+  const frame = <clipPath id={id + 'f'}><rect x={v.x} y={v.y} width={v.w} height={v.h} /></clipPath>
   if (!mask) {
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className={className} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
-        {parts}
+      <svg viewBox={box} className={className} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
+        <defs>{frame}</defs>
+        <g clipPath={`url(#${id}f)`}>{parts}</g>
       </svg>
     )
   }
   // Cut to a shape, centred, with one colour around it
-  const m = Math.min(W, H) * (1 - mask.inset) / 2, cx = W / 2, cy = H / 2
+  const m = Math.min(v.w, v.h) * (1 - mask.inset) / 2, cx = v.x + v.w / 2, cy = v.y + v.h / 2
   const clip = {
     circle: <circle cx={cx} cy={cy} r={m} />,
     arch: <path d={`M${cx - m},${cy + m}V${cy}A${m},${m} 0 0 1 ${cx + m},${cy}V${cy + m}Z`} />,
@@ -89,10 +95,10 @@ export const PatternSvg = memo(function PatternSvg({ pattern, className }: { pat
     none: null,
   }[mask.shape]
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="xMidYMid meet">
-      <defs><clipPath id={id}>{clip}</clipPath></defs>
-      <rect width={W} height={H} fill={fill(mask.role)} />
-      <g clipPath={`url(#${id})`} shapeRendering="crispEdges">{parts}</g>
+    <svg viewBox={box} className={className} preserveAspectRatio="xMidYMid meet">
+      <defs><clipPath id={id}>{clip}</clipPath>{frame}</defs>
+      <rect x={v.x} y={v.y} width={v.w} height={v.h} fill={fill(mask.role)} />
+      <g clipPath={`url(#${id}f)`}><g clipPath={`url(#${id})`} shapeRendering="crispEdges">{parts}</g></g>
     </svg>
   )
 })

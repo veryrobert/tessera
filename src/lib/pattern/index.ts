@@ -18,16 +18,42 @@ export { rng, fork } from './random'
 // The whole state of a pattern. Serialisable, so it can sit in the URL.
 // mask cuts the pattern to a shape (the WillB circle), with role filling the rest.
 export type Mask = { shape: 'none' | 'circle' | 'arch' | 'diamond'; role: number; inset: number }
-type Common = { seed: number; palette: PaletteSpec; mask?: Mask }
+// tone: 0 is black and white (greys ranked by lightness), 1 full colour, in between a blend
+// scale: cells across a fixed frame (aspect is its height over width). Set, the pattern repeats to
+// fill the frame and scale zooms it smoothly; unset, the frame fits the layout's tiles.
+type Common = { seed: number; palette: PaletteSpec; mask?: Mask; tone?: number; scale?: number; aspect?: number }
 export type Spec = Common & (
   | { mode: 'block'; source: LibraryName | 'generate'; block: BlockSpec; layout: LayoutSpec }
   | { mode: 'plaid'; plaid: Omit<PlaidSpec, 'sett'> & { sett: PlaidSpec['sett'] | null } }
   | { mode: 'field'; field: FieldSpec }
 )
 
-export type Pattern = { grid: Grid; colours: string[]; mask?: Mask }
+export type Pattern = { grid: Grid; colours: string[]; mask?: Mask; view?: { x: number; y: number; w: number; h: number } }
 
 export function build(spec: Spec): Pattern {
+  const p = framed(spec)
+  const used = new Set(p.grid.flat().flatMap(c => (c.alt === undefined ? [c.role] : [c.role, c.alt])))
+  if (p.mask) used.add(p.mask.role)
+  return { ...p, colours: toned(p.colours, spec.tone ?? 1, used) }
+}
+
+// With a scale, grow the pattern past the frame and crop to it, centred
+function framed(spec: Spec): Pattern {
+  if (!spec.scale) return buildColour(spec)
+  const w = spec.scale, h = spec.scale * (spec.aspect ?? 1)
+  const W = Math.ceil(w) + 1, H = Math.ceil(h) + 1
+  let s: Spec
+  if (spec.mode === 'block') {
+    const n = (spec.source === 'generate' ? spec.block.size : library[spec.source].length) + spec.layout.sashing
+    s = { ...spec, layout: { ...spec.layout, cols: Math.ceil(W / n) + 1, rows: Math.ceil(H / n) + 1 } }
+  } else if (spec.mode === 'plaid') s = { ...spec, plaid: { ...spec.plaid, cols: W, rows: H } }
+  else s = { ...spec, field: { ...spec.field, cols: W, rows: H } }
+  const p = buildColour(s)
+  const gw = p.grid[0].length, gh = p.grid.length
+  return { ...p, view: { x: Math.max(0, (gw - w) / 2), y: Math.max(0, (gh - h) / 2), w, h } }
+}
+
+function buildColour(spec: Spec): Pattern {
   const colours = makePalette(spec.palette)
   const mask = spec.mask?.shape && spec.mask.shape !== 'none' ? spec.mask : undefined
   if (spec.mode === 'plaid') {
@@ -47,6 +73,21 @@ export function build(spec: Spec): Pattern {
     return { grid: tile(block, spec.layout, n, ways), colours: all, mask }
   }
   return { grid: tile(block, spec.layout, colours.length), colours, mask }
+}
+
+// Colours toward black and white: each becomes a grey by its rank in lightness, lightest white,
+// darkest off-black, the rest evenly between, so a two-colour pattern is pure black and white
+function toned(colours: string[], tone: number, used: Set<number>): string[] {
+  if (tone >= 1) return colours
+  const rgb = colours.map(c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)))
+  const lum = rgb.map(([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b)
+  const levels = [...new Set(lum.filter((_, i) => used.has(i)).map(l => Math.round(l)))].sort((a, b) => b - a)
+  return rgb.map((c, i) => {
+    const k = Math.max(0, levels.findIndex(l => l <= Math.round(lum[i])))
+    const INK = 20 // the darkest is a slight off-black (#141414), so it parts from a black page
+    const grey = levels.length < 2 ? 255 : Math.round(255 - (255 - INK) * (k / (levels.length - 1)))
+    return '#' + c.map(v => Math.round(grey + (v - grey) * tone).toString(16).padStart(2, '0')).join('')
+  })
 }
 
 // Share and restore through location.hash
