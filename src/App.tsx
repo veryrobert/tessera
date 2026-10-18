@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Ban, Bookmark, Download, Eye, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
+import { Ban, Bookmark, Copy, Download, Eye, Library, SlidersHorizontal, Grid2x2, Image as ImageIcon, ImagePlus, Palette, Shuffle, Trash2, Type, Undo2, Upload, Wand2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
-import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToolButton } from '@/components/shell/ToolButton'
 import { Toolbar } from '@/components/shell/Toolbar'
@@ -507,20 +506,20 @@ export default function App() {
           <Segmented label="Size" value={svgSize} onChange={setSvgSize} options={[{ value: 'large', label: 'Large' }, { value: 'pixel', label: 'Pixel' }]} />
         </Field>
       </FieldGroup>
-      <FieldGroup>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={exportPng}>Save PNG</Button>
-          <Button variant="secondary" onClick={exportSvg}>Save SVG</Button>
-        </div>
-      </FieldGroup>
-      <FieldGroup>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={copyPng}>Copy PNG</Button>
-          <Button variant="secondary" onClick={copySvg}>Copy SVG</Button>
-          <Button variant="secondary" onClick={copyColours}>Copy colours</Button>
-          <Button variant="secondary" onClick={copyLink}>Copy link</Button>
-        </div>
-      </FieldGroup>
+      <div className="flex flex-col">
+        {([
+          ['PNG', exportPng, copyPng],
+          ['SVG', exportSvg, copySvg],
+          ['Colours', null, copyColours],
+          ['Link', null, copyLink],
+        ] as const).map(([name, saveIt, copyIt]) => (
+          <div key={name} className="flex items-center gap-1 border-b border-border py-1.5 last:border-0">
+            <span className="flex-1 text-xs">{name}</span>
+            {saveIt && <ToolButton icon={Download} label={`Save ${name}`} side="top" className="size-8" onClick={saveIt} />}
+            <ToolButton icon={Copy} label={`Copy ${name.length === 3 ? name : name.toLowerCase()}`} side="top" className="size-8" onClick={copyIt} />
+          </div>
+        ))}
+      </div>
     </>
   )
 
